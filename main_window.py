@@ -4,7 +4,6 @@ import threading
 import time
 import math
 import random
-from controllers.Rasberrypi_Controller import RaspberryController
 try:
     import numpy as np
     import cv2
@@ -134,6 +133,8 @@ class PhaseSelectionWindow:
         warning_label.pack(pady=(0, 0))
 
 
+    # main_window.py dosyasındaki _create_phase_cards metodunda değişiklikler
+
     def _create_phase_cards(self, parent):
         """
         Aşama kartlarını 2×2 grid şeklinde oluşturur.
@@ -147,12 +148,12 @@ class PhaseSelectionWindow:
         cards_frame.grid_columnconfigure(0, weight=1, uniform="col")
         cards_frame.grid_columnconfigure(1, weight=1, uniform="col")
 
-        # Aşama verileri
+        # Aşama verileri - GÜNCELLENMIŞ
         phase_data = [
-            {"id": 0, "title": "AŞAMA 0", "icon": "🎮", "color": "#6b46c1", "hover": "#553c9a"},
-            {"id": 1, "title": "AŞAMA 1", "icon": "🎯", "color": "#4CAF50", "hover": "#388E3C"},
-            {"id": 2, "title": "AŞAMA 2", "icon": "🔍", "color": "#FF9800", "hover": "#F57C00"},
-            {"id": 3, "title": "AŞAMA 3", "icon": "⚡", "color": "#F44336", "hover": "#D32F2F"},
+            {"id": 0, "title": "MANUEL MOD", "icon": "🎮", "color": "#9b59b6", "hover": "#8e44ad"},  # Mor renk
+            {"id": 1, "title": "AŞAMA 1", "icon": "🎯", "color": "#2ecc71", "hover": "#27ae60"},     # Yeşil renk
+            {"id": 2, "title": "AŞAMA 2", "icon": "🔍", "color": "#f39c12", "hover": "#e67e22"},     # Turuncu renk
+            {"id": 3, "title": "AŞAMA 3", "icon": "⚡", "color": "#e74c3c", "hover": "#c0392b"},     # Kırmızı renk
         ]
 
         for idx, info in enumerate(phase_data):
@@ -162,15 +163,15 @@ class PhaseSelectionWindow:
     def _create_phase_card(self, parent, phase_info, row, column):
         """
         Tek bir aşama kartını grid içinde (row,col) pozisyonunda oluşturur.
-        Kartın altındaki uzun açıklamalar kaldırıldı; sadece ikon, başlık ve buton var.
+        Kart rengi aşamanın rengine göre değiştirildi.
         """
-        # Kart çerçevesini grid ile yerleştir
+        # Kart çerçevesini grid ile yerleştir - RENK GÜNCELLENDİ
         card = ctk.CTkFrame(
             parent,
             fg_color="#2a2a2a",  # İç koyu renk KALSIN
             corner_radius=12,
-            border_width=2,
-            border_color="#3399ff"  # SkyShield mavisi (kenar çizgisi)
+            border_width=3,      # Kenar kalınlığı artırıldı
+            border_color=phase_info["color"]  # Her aşamanın kendi rengi olarak kenar
         )
 
         card.grid(
@@ -237,6 +238,10 @@ class BaseModule:
         title_label.pack(pady=(10, 5))
         
     def pack(self, **kwargs):
+        # Kamera modülü için özel padding
+        if isinstance(self, CameraModule):
+            kwargs.setdefault('padx', 0)
+            kwargs.setdefault('pady', 0)
         self.frame.pack(**kwargs)
 
 class SystemStatusModule(BaseModule):
@@ -303,21 +308,7 @@ class TargetInfoModule(BaseModule):
             text_color="#00ccff"
         )
         self.control_mode.pack(pady=2)
-        
-        self.sensitivity_label = ctk.CTkLabel(
-            self.frame,
-            text="Hassasiyet: Normal",
-            font=ctk.CTkFont(size=12)
-        )
-        self.sensitivity_label.pack(pady=2)
-        
-        self.safety_status = ctk.CTkLabel(
-            self.frame,
-            text="Güvenlik: Aktif",
-            font=ctk.CTkFont(size=12),
-            text_color="#00ff88"
-        )
-        self.safety_status.pack(pady=2)        
+            
             
     def create_phase1_info(self):
         """Aşama 1: Temel hedef bilgileri"""
@@ -361,17 +352,19 @@ class TargetInfoModule(BaseModule):
             text_color="#ffaa00"
         )
         self.destroyed_label.pack(pady=2)
+
+        self.detection_mode = ctk.CTkLabel(
+            self.frame,
+            text="Tespit Modu: Renk Bazlı",
+            font=ctk.CTkFont(size=12),
+            text_color="#00ccff"
+        )
+        self.detection_mode.pack(pady=2)
+
+        
         
     def create_phase3_info(self):
-        """Aşama 3: QR kod ve angajman bilgileri"""
-        self.qr_status_label = ctk.CTkLabel(
-            self.frame,
-            text="QR Kod: Okunmadı",
-            font=ctk.CTkFont(size=12),
-            text_color="#ff6666"
-        )
-        self.qr_status_label.pack(pady=2)
-        
+        """Aşama 3: angajman bilgileri"""
         self.target_color_label = ctk.CTkLabel(
             self.frame,
             text="Hedef Renk: --",
@@ -394,6 +387,14 @@ class TargetInfoModule(BaseModule):
         )
         self.platform_label.pack(pady=2)
 
+        self.engagement_status = ctk.CTkLabel(
+            self.frame,
+            text="Angajman: Bekliyor",
+            font=ctk.CTkFont(size=12),
+            text_color="#ffaa00"
+        )
+        self.engagement_status.pack(pady=2)
+
 class CoordinatesModule(BaseModule):
     """Koordinat bilgileri modülü"""
     def __init__(self, parent):
@@ -407,8 +408,8 @@ class CoordinatesModule(BaseModule):
         coord_data = [
             ("Mesafe", "-- m"),
             ("Açı (Pan)", "0°"),
-            ("Açı (Tilt)", "0°"),
-            ("Hız", "-- m/s")
+            ("Açı (Tilt)", "0°")
+            # ("Hız", "-- m/s")  # Bu satır kaldırıldı
         ]
         
         for label, value in coord_data:
@@ -436,8 +437,8 @@ class CoordinatesModule(BaseModule):
             self.coord_labels["Açı (Pan)"].configure(text=f"{pan}°")
         if tilt is not None:
             self.coord_labels["Açı (Tilt)"].configure(text=f"{tilt}°")
-        if speed is not None:
-            self.coord_labels["Hız"].configure(text=f"{speed} m/s")
+        # speed parametresi hâlâ kabul edilebilir ama işlem yapılmaz
+        # Böylece eski kodlarla uyumluluk bozulmaz
 
 class WeaponModule(BaseModule):
     """Mühimmat modülü"""
@@ -538,43 +539,47 @@ class WeaponModule(BaseModule):
 class CameraModule(BaseModule):
     """Profesyonel askeri kamera modülü"""
     def __init__(self, parent, phase):
-        super().__init__(parent, f"KAMERA GÖRÜNTÜSÜ - AŞAMA {phase}")
+        # Kamera başlığını aşamaya göre belirle
+        if phase == 0:
+            title = "KAMERA GÖRÜNTÜSÜ - MANUEL MOD"
+        else:
+            title = f"KAMERA GÖRÜNTÜSÜ - AŞAMA {phase}"
+            
+        super().__init__(parent, title)
         self.phase = phase
         self.camera_active = False
         self.target_locked = False
-        self.target_x = 320
-        self.target_y = 240
+        self.target_x = 320  # ← Bu değişkenler olmalı
+        self.target_y = 240  # ← Bu değişkenler olmalı
         self.setup_module()
         
     def setup_module(self):
         # Başlık kaldırıldı, direkt kamera alanı
         
-        # Ana kamera container - Siyah askeri tema
+        # Ana kamera container
         self.camera_container = ctk.CTkFrame(
             self.frame, 
-            fg_color="#000000",  # Siyah arka plan
+            fg_color="#000000",
             corner_radius=0,
-            border_width=2,
-            border_color="#ffff00"  # Sarı çerçeve
+            border_width=0
         )
-        self.camera_container.pack(fill="both", expand=True, padx=5, pady=5)
+        self.camera_container.pack(fill="both", expand=True, padx=0, pady=0)
         
-        # Kamera canvas - askeri targeting sistemi
         self.camera_canvas = tk.Canvas(
             self.camera_container,
             bg="#000000",
-            width=500,
-            height=350,
             highlightthickness=0,
             bd=0
+            # width ve height kaldırıldı - dinamik olacak
         )
-        self.camera_canvas.pack(fill="both", expand=True, padx=10, pady=10)
+        self.camera_canvas.pack(fill="both", expand=True, padx=0, pady=0)
+
+        self.camera_canvas.after(100, self.setup_targeting_system)
         
         # İLK AÇILIŞTA KAMERA AKTİF OLSUN
         self.camera_active = True
         
-        # Targeting crosshair ve overlay'leri başlat
-        self.setup_targeting_system()
+        
         
         # Alt durum çubuğu
         self.create_status_bar()
@@ -586,39 +591,66 @@ class CameraModule(BaseModule):
         self.start_targeting_animation()
         
     def setup_targeting_system(self):
-        """Askeri targeting sistemi kuruşu"""
+        """Askeri targeting sistemi kuruşu - DİNAMİK BOYUT"""
+        # Canvas boyutlarını güncelle
+        self.camera_canvas.update()
+        canvas_width = self.camera_canvas.winfo_width()
+        canvas_height = self.camera_canvas.winfo_height()
+
+        if canvas_width <= 1:
+            canvas_width = 800
+        if canvas_height <= 1:
+            canvas_height = 600
+
         canvas = self.camera_canvas
-        
-        # Ana crosshair (artı işareti) - Merkez
-        canvas.create_line(250, 160, 250, 190, fill="#ffff00", width=2, tags="crosshair")
-        canvas.create_line(235, 175, 265, 175, fill="#ffff00", width=2, tags="crosshair")
-        
-        # Köşe çerçeveleri (targeting brackets)
+        center_x = canvas_width // 2
+        center_y = canvas_height // 2
+
+        # İlk olarak grid çizgilerini çizelim (arka plan)
+        grid_spacing = 80
+        for i in range(grid_spacing, canvas_width, grid_spacing):
+            canvas.create_line(i, 0, i, canvas_height, fill="#333333", width=1, tags="grid")
+        for i in range(grid_spacing, canvas_height, grid_spacing):
+            canvas.create_line(0, i, canvas_width, i, fill="#333333", width=1, tags="grid")
+        # Grid katmanını en alt seviyeye çekelim
+        canvas.tag_lower("grid")
+
+        # Köşe bracket'ları (brackets) — daha geniş margin ile çiziliyor
+        margin = 80
         # Sol üst
-        canvas.create_line(50, 50, 80, 50, fill="#ffff00", width=3, tags="brackets")
-        canvas.create_line(50, 50, 50, 80, fill="#ffff00", width=3, tags="brackets")
-        
-        # Sağ üst  
-        canvas.create_line(420, 50, 450, 50, fill="#ffff00", width=3, tags="brackets")
-        canvas.create_line(450, 50, 450, 80, fill="#ffff00", width=3, tags="brackets")
-        
+        canvas.create_line(0, 0, 30, 0, fill="#ffff00", width=3, tags="brackets")
+        canvas.create_line(0, 0, 0, 30, fill="#ffff00", width=3, tags="brackets")
+
+        # Sağ üst
+        canvas.create_line(canvas_width, 0, canvas_width - 30, 0, fill="#ffff00", width=3, tags="brackets")
+        canvas.create_line(canvas_width, 0, canvas_width, 30, fill="#ffff00", width=3, tags="brackets")
+
         # Sol alt
-        canvas.create_line(50, 270, 80, 270, fill="#ffff00", width=3, tags="brackets")
-        canvas.create_line(50, 270, 50, 300, fill="#ffff00", width=3, tags="brackets")
-        
+        canvas.create_line(0, canvas_height, 30, canvas_height, fill="#ffff00", width=3, tags="brackets")
+        canvas.create_line(0, canvas_height, 0, canvas_height - 30, fill="#ffff00", width=3, tags="brackets")
+
         # Sağ alt
-        canvas.create_line(420, 270, 450, 270, fill="#ffff00", width=3, tags="brackets")
-        canvas.create_line(450, 270, 450, 300, fill="#ffff00", width=3, tags="brackets")
-        
-        # Grid çizgileri
-        for i in range(100, 400, 50):
-            canvas.create_line(i, 0, i, 350, fill="#333333", width=1, tags="grid")
-        for i in range(50, 300, 50):
-            canvas.create_line(0, i, 500, i, fill="#333333", width=1, tags="grid")
-            
-        # Hedef simülasyonu - Drone/Uçak
+        canvas.create_line(canvas_width, canvas_height, canvas_width - 30, canvas_height, fill="#ffff00", width=3, tags="brackets")
+        canvas.create_line(canvas_width, canvas_height, canvas_width, canvas_height - 30, fill="#ffff00", width=3, tags="brackets")
+
+        # Bracket'lar grid'in üzerinde kalsın
+        canvas.tag_raise("brackets", "grid")
+
+        # Merkezi crosshair (nişangâh) çizelim
+        canvas.create_line(center_x, center_y - 15, center_x, center_y + 15, fill="#ffff00", width=2, tags="crosshair")
+        canvas.create_line(center_x - 15, center_y, center_x + 15, center_y, fill="#ffff00", width=2, tags="crosshair")
+        # Crosshair'ı en üste alın, böylece bracket'lar ile çakışmaz
+        canvas.tag_raise("crosshair", "brackets")
+
+        # Hedefin konumunu merkeze ayarla
+        self.target_x = center_x
+        self.target_y = center_y
+
+        # Hedef simülasyonu (drone)
         self.create_target_drone()
-        
+
+
+            
     def create_target_drone(self):
         """3D Drone/Uçak simülasyonu"""
         canvas = self.camera_canvas
@@ -698,9 +730,14 @@ class CameraModule(BaseModule):
         )
         self.time_label.pack(side="right", padx=10)
         
+        if self.phase == 0:
+            phase_text = "MANUEL MOD"
+        else:
+            phase_text = f"AŞAMA {self.phase}"
+            
         phase_label = ctk.CTkLabel(
             right_frame,
-            text=f"AŞAMA {self.phase}",
+            text=phase_text,
             font=ctk.CTkFont(size=12, weight="bold"),
             text_color="#ffff00"
         )
@@ -753,19 +790,29 @@ class CameraModule(BaseModule):
         self.animate_targeting()
         
     def animate_targeting(self):
-        """Crosshair ve hedef animasyonu"""
-        # Acil durdur kontrolü - animasyonu durdur
+        """Crosshair ve hedef animasyonu - DİNAMİK"""
         if not self.camera_active:
             return
             
         if hasattr(self, 'camera_canvas'):
             canvas = self.camera_canvas
             
-            # Hedef hareketi (sinüs dalgası)
+            # Canvas boyutunu al
+            canvas.update()
+            canvas_width = canvas.winfo_width() or 800
+            canvas_height = canvas.winfo_height() or 600
+            
+            center_x = canvas_width // 2
+            center_y = canvas_height // 2
+            
+            # Hedef hareketi (canvas boyutuna göre)
             import math
             t = time.time()
-            self.target_x = 250 + 50 * math.sin(t * 0.5)
-            self.target_y = 175 + 30 * math.cos(t * 0.3)
+            max_movement_x = (canvas_width // 2) - 100  # Kenarlara çok yaklaşmasın
+            max_movement_y = (canvas_height // 2) - 100
+            
+            self.target_x = center_x + max_movement_x * math.sin(t * 0.5) * 0.7
+            self.target_y = center_y + max_movement_y * math.cos(t * 0.3) * 0.7
             
             # Eski drone'u temizle
             canvas.delete("drone")
@@ -777,7 +824,7 @@ class CameraModule(BaseModule):
             # Koordinat güncelleme
             self.update_coordinates()
             
-            # 100ms sonra tekrar animate et (sadece kamera aktifse)
+            # 100ms sonra tekrar animate et
             if self.camera_active:
                 self.frame.after(100, self.animate_targeting)
             
@@ -1094,31 +1141,32 @@ class ControlModule(BaseModule):
             command=self.start_auto_scan
         )
         self.auto_button.pack(fill="x", padx=10, pady=5)
+
+        # YENİ EKLEME - Tarama durumu göstergesi
+        indicator_frame = ctk.CTkFrame(self.frame, fg_color="transparent")
+        indicator_frame.pack(fill="x", padx=10, pady=5)
+        
+        ctk.CTkLabel(
+            indicator_frame,
+            text="Tarama Durumu:",
+            font=ctk.CTkFont(size=12)
+        ).pack(side="left")
+        
+        self.scan_indicator = ctk.CTkLabel(
+            indicator_frame,
+            text="●",
+            font=ctk.CTkFont(size=20),
+            text_color="#ff6666"  # Kırmızı = pasif, yeşil = aktif
+        )
+        self.scan_indicator.pack(side="right")
         
     def create_phase2_controls(self):
-        """Aşama 2 kontrolleri"""
-        self.auto_button = ctk.CTkButton(
-            self.frame,
-            text="DÜŞMAN TESPİT BAŞLAT",
-            fg_color="#FF9800",
-            hover_color="#F57C00",
-            height=40,
-            command=self.start_enemy_detection
-        )
-        self.auto_button.pack(fill="x", padx=10, pady=5)
+         """Aşama 2 kontrolleri"""
+        # DÜŞMAN TESPİT BAŞLAT butonu kaldırıldı
+        # Sadece kalibrasyon butonu kalacak (create_common_controls'da)
         
     def create_phase3_controls(self):
         """Aşama 3 kontrolleri"""
-        # QR okuma
-        qr_button = ctk.CTkButton(
-            self.frame,
-            text="QR KOD OKU",
-            fg_color="#9C27B0",
-            hover_color="#7B1FA2",
-            height=35,
-            command=self.read_qr_code
-        )
-        qr_button.pack(fill="x", padx=10, pady=2)
         
         # Angajman başlat
         self.auto_button = ctk.CTkButton(
@@ -1133,19 +1181,20 @@ class ControlModule(BaseModule):
         
     def create_common_controls(self):
         """Ortak kontroller"""
-        # Ateş butonu
-        self.fire_button = ctk.CTkButton(
-            self.frame,
-            text="ATEŞ!",
-            font=ctk.CTkFont(size=16, weight="bold"),
-            fg_color="#ff4444",
-            hover_color="#cc3333",
-            height=50,
-            command=self.fire_weapon
-        )
-        self.fire_button.pack(fill="x", padx=10, pady=10)
+        # Ateş butonu - SADECE AŞAMA 0 VE 3 İÇİN
+        if self.phase == 0 or self.phase == 3:
+            self.fire_button = ctk.CTkButton(
+                self.frame,
+                text="ATEŞ!",
+                font=ctk.CTkFont(size=16, weight="bold"),
+                fg_color="#ff4444",
+                hover_color="#cc3333",
+                height=50,
+                command=self.fire_weapon
+            )
+            self.fire_button.pack(fill="x", padx=10, pady=10)
         
-        # Kalibrasyon
+        # Kalibrasyon butonu - TÜM AŞAMALAR İÇİN
         calibrate_button = ctk.CTkButton(
             self.frame,
             text="KALİBRASYON",
@@ -1157,16 +1206,108 @@ class ControlModule(BaseModule):
         calibrate_button.pack(fill="x", padx=10, pady=2)
         
     def start_auto_scan(self):
-        # Aşama 1 otomatik tarama
-        pass
+        """Aşama 1 otomatik tarama"""
+        # Tarama durumunu aktif yap
+        if hasattr(self, 'scan_indicator'):
+            self.scan_indicator.configure(text_color="#00ff88")  # Yeşil = aktif
+        
+        # Butonu güncelle
+        self.auto_button.configure(
+            text="OTOMATIK TARAMA DURDUR",
+            fg_color="#ff6666",  # Kırmızı
+            hover_color="#cc3333",
+            command=self.stop_auto_scan
+        )
+        
+        # Target info panelindeki durumu güncelle (eğer varsa)
+        try:
+            # Ana GUI'deki target modülüne erişim
+            if hasattr(self.parent.master.master, 'target_module'):
+                target_module = self.parent.master.master.target_module
+                if hasattr(target_module, 'scan_status'):
+                    target_module.scan_status.configure(
+                        text="Tarama: Aktif",
+                        text_color="#00ff88"
+                    )
+        except:
+            pass
+        
+        # Log'a kaydet
+        try:
+            if hasattr(self.parent.master.master, 'log_module'):
+                self.parent.master.master.log_module.add_log("🔍 Otomatik tarama başlatıldı")
+        except:
+            pass
+
+    def stop_auto_scan(self):
+        """Otomatik tarama durdur"""
+        # Tarama durumunu pasif yap
+        if hasattr(self, 'scan_indicator'):
+            self.scan_indicator.configure(text_color="#ff6666")  # Kırmızı = pasif
+        
+        # Butonu güncelle
+        self.auto_button.configure(
+            text="OTOMATIK TARAMA BAŞLAT",
+            fg_color="#4CAF50",  # Yeşil
+            hover_color="#388E3C",
+            command=self.start_auto_scan
+        )
+        
+        # Target info panelindeki durumu güncelle (eğer varsa)
+        try:
+            if hasattr(self.parent.master.master, 'target_module'):
+                target_module = self.parent.master.master.target_module
+                if hasattr(target_module, 'scan_status'):
+                    target_module.scan_status.configure(
+                        text="Tarama: Pasif",
+                        text_color="#ffaa00"
+                    )
+        except:
+            pass
+        
+        # Log'a kaydet
+        try:
+            if hasattr(self.parent.master.master, 'log_module'):
+                self.parent.master.master.log_module.add_log("⏹️ Otomatik tarama durduruldu")
+        except:
+            pass
         
     def start_enemy_detection(self):
         # Aşama 2 düşman tespiti
         pass
         
     def start_engagement(self):
-        # Aşama 3 angajman
-        pass
+        """Angajmanı başlat/kapat"""
+        if not hasattr(self, 'engagement_active'):
+            self.engagement_active = False
+
+        self.engagement_active = not self.engagement_active
+
+        # Buton metnini değiştir
+        if self.engagement_active:
+            self.auto_button.configure(text="ANGAJMAN KAPAT", fg_color="#888888")
+        else:
+            self.auto_button.configure(text="ANGAJMAN BAŞLAT", fg_color="#F44336")
+
+        # 🔁 Hedef bilgileri panelini güncelle
+        try:
+            target_module = self.parent.master.master.target_module  # Ana GUI'deki hedef modülü
+            if hasattr(target_module, 'engagement_status'):
+                if self.engagement_active:
+                    target_module.engagement_status.configure(
+                        text="Angajman: Aktif",
+                        text_color="#00ff88"
+                    )
+                else:
+                    target_module.engagement_status.configure(
+                        text="Angajman: Bekliyor",
+                        text_color="#ffaa00"
+                    )
+        except Exception as e:
+            print(f"[ENGAGEMENT] Güncelleme hatası: {e}")
+
+
+
         
     def read_qr_code(self):
         # QR kod okuma
@@ -1201,14 +1342,21 @@ class SkyShieldMainGUI:
         middle = ctk.CTkFrame(header_frame, fg_color="transparent")
         middle.grid(row=0, column=1, sticky="n", pady=(5, 0))
 
+        # AŞAMA BAŞLIĞI GÜNCELLENDİ - Aşama 0 için özel başlık
+        if self.phase == 0:
+            title_text = "SKY SHIELD - MANUEL MOD"
+        else:
+            title_text = f"SKY SHIELD - AŞAMA {self.phase}"
+        
         title_lbl = ctk.CTkLabel(
             middle,
-            text=f"SKY SHIELD - AŞAMA {self.phase}",
+            text=title_text,
             font=ctk.CTkFont(size=32, weight="bold"),
             text_color=self.theme_color
         )
         title_lbl.pack(side="top", pady=(0, 0))
 
+        # AÇIKLAMA METNİ - Aşama 0 için özel açıklama
         phase_descs = {
             0: "Manuel Kontrol Modu",
             1: "Temel Hedef Tespiti ve İmha",
@@ -1246,10 +1394,6 @@ class SkyShieldMainGUI:
 
         self.setup_main_gui()
         self.setup_modules()
-        # Raspberry Pi kontrolcüsü
-        self.raspberry = RaspberryController()
-        self.raspberry.start_connection()
-        
 
         
     def center_window(self):
@@ -1332,12 +1476,12 @@ class SkyShieldMainGUI:
         self.weapon_module = WeaponModule(left_frame)
         self.weapon_module.pack(fill="x", padx=10, pady=5)
         
-        # Orta panel - Kamera (Askeri targeting sistemi)
+        # Orta panel - Kamera (Askeri targeting sistemi) - GÜNCELLEME
         center_frame = ctk.CTkFrame(self.content_frame, fg_color="#000000")
-        center_frame.pack(side="left", fill="both", expand=True, padx=5)
+        center_frame.pack(side="left", fill="both", expand=True, padx=0)  # padx=0 yapıldı
         
         self.camera_module = CameraModule(center_frame, self.phase)
-        self.camera_module.pack(fill="both", expand=True, padx=5, pady=5)
+        self.camera_module.pack(fill="both", expand=True, padx=0, pady=0)  # padx=0, pady=0 yapıldı
         
         # Sağ panel - Kontroller ve log (Askeri tema)
         right_frame = ctk.CTkFrame(self.content_frame, width=250, fg_color="#1a1a1a")
@@ -1401,22 +1545,31 @@ class SkyShieldMainGUI:
         self.emergency_button.pack(padx=10, pady=10)
         
     def start_system(self):
-            # İLK DEFA sistem modunu gönder
-        self.raspberry.update_system_mode(self.phase)
+        # ACİL DURDUR DURUMUNDAN ÇIKMA
+        self.emergency_active = False
         
-        # Sistem aktif durumunu gönder
-        self.raspberry.update_system_active(True)
+        # Acil durdur popup'ını kapat (eğer açıksa)
+        if hasattr(self, 'emergency_popup'):
+            try:
+                self.emergency_popup.destroy()
+            except:
+                pass
         
-        # Aşamaya göre özel komut
-        if self.phase > 0:
-            self.raspberry.send_phase_command(self.phase)
-    
-   
+        # Emergency butonunu normale döndür
+        self.emergency_button.configure(
+            fg_color="#cc0000",
+            text="ACİL DURDUR"
+        )
+        
+        # SİSTEMLERİ YENİDEN BAŞLAT
+        self._restart_all_systems()
+        
+        # Sistem durumunu güncelle
         self.status_module.update_status("Sistem Aktif", "#00ff88")
-        self.log_module.add_log("Sistem başlatıldı")
+        self.log_module.add_log("🟢 Sistem yeniden başlatıldı")
+        self.log_module.add_log("✅ Acil durdur durumundan çıkıldı")
         
     def stop_system(self):
-        self.raspberry.update_system_active(False)
         self.status_module.update_status("Sistem Durduruldu", "#ff6666")
         self.log_module.add_log("Sistem durduruldu")
         
@@ -1427,15 +1580,77 @@ class SkyShieldMainGUI:
         # TÜM SİSTEMLERİ DURDUR
         self._stop_all_systems()
         
-        # Uyarı popup'ı oluştur
-        self.create_emergency_popup()
+        # Basit uyarı popup'ı oluştur (15 saniye geri sayım YOK)
+        self.create_simple_emergency_popup()
         
         # Sistem durumunu güncelle
         self.status_module.update_status("ACİL DURDUR AKTİVE!", "#ff0000")
-        self.log_module.add_log("⚠️ ACİL DURDUR AKTİVE EDİLDİ!")
+        self.log_module.add_log("🚨 ACİL DURDUR AKTİVE EDİLDİ!")
+        self.log_module.add_log("🛑 SİSTEM ACİL OLARAK DURDURULDU")
+
+    def create_simple_emergency_popup(self):
+        """Basit acil durdur uyarı popup'ı - GERİ SAYIM YOK"""
+        # Popup penceresi
+        self.emergency_popup = ctk.CTkToplevel(self.root)
+        self.emergency_popup.title("⚠️ ACİL DURDUR")
+        self.emergency_popup.geometry("400x200")
+        self.emergency_popup.resizable(False, False)
         
-        # 15 saniye geri sayım başlat
-        self.start_emergency_countdown()
+        # Pencereyi üstte tut
+        self.emergency_popup.attributes('-topmost', True)
+        self.emergency_popup.grab_set()
+        
+        # Ortalama
+        self.emergency_popup.update_idletasks()
+        x = (self.emergency_popup.winfo_screenwidth() // 2) - (400 // 2)
+        y = (self.emergency_popup.winfo_screenheight() // 2) - (200 // 2)
+        self.emergency_popup.geometry(f"400x200+{x}+{y}")
+        
+        # Ana frame
+        main_frame = ctk.CTkFrame(self.emergency_popup, fg_color="#cc0000")
+        main_frame.pack(fill="both", expand=True, padx=10, pady=10)
+        
+        # Uyarı başlığı
+        warning_label = ctk.CTkLabel(
+            main_frame,
+            text="🚨 SİSTEM ACİL OLARAK DURDURULDU! 🚨",
+            font=ctk.CTkFont(size=20, weight="bold"),
+            text_color="#ffffff"
+        )
+        warning_label.pack(pady=30)
+        
+        # Açıklama
+        desc_label = ctk.CTkLabel(
+            main_frame,
+            text="Tüm operasyonlar durduruldu.\nSistem güvenli modda.",
+            font=ctk.CTkFont(size=14),
+            text_color="#ffffff"
+        )
+        desc_label.pack(pady=20)
+        
+        # Tamam butonu
+        ok_button = ctk.CTkButton(
+            main_frame,
+            text="TAMAM",
+            command=self.close_emergency_popup,
+            fg_color="#ffffff",
+            text_color="#cc0000",
+            hover_color="#f0f0f0",
+            width=100,
+            height=35
+        )
+        ok_button.pack(pady=20)
+
+    def close_emergency_popup(self):
+        """Emergency popup'ı kapat"""
+        if hasattr(self, 'emergency_popup'):
+            self.emergency_popup.destroy()
+        
+        # Butonu normale döndür
+        self.emergency_button.configure(
+            fg_color="#cc0000",
+            text="ACİL DURDUR"
+        )
     
     def _stop_all_systems(self):
         """Acil durdurma - Tüm sistemleri durdur"""
@@ -1471,6 +1686,11 @@ class SkyShieldMainGUI:
                 if hasattr(self.camera_module, 'status_icon'):
                     self.camera_module.status_icon.configure(text="🚨")
             
+            # KONTROL BUTONLARINI DEVRE DIŞI BIRAK
+            if hasattr(self, 'control_module'):
+                for widget in self.control_module.frame.winfo_children():
+                    if isinstance(widget, ctk.CTkButton):
+                        widget.configure(state="disabled")
             # Sistem durumunu güncelle
             if hasattr(self, 'status_module'):
                 self.status_module.update_progress(0.0)  # Progress bar'ı sıfırla
@@ -1478,6 +1698,7 @@ class SkyShieldMainGUI:
             self.log_module.add_log("🛑 Kamera sistemleri durduruldu")
             self.log_module.add_log("🛑 Hedef takip sistemleri devre dışı")
             self.log_module.add_log("🛑 Animasyonlar durduruldu")
+            self.log_module.add_log("🛑 Kontrol butonları devre dışı")
             
         except Exception as e:
             print(f"[EMERGENCY] Sistem durdurma hatası: {e}")
@@ -1545,60 +1766,8 @@ class SkyShieldMainGUI:
         )
         cancel_button.pack(pady=10)
     
-    def start_emergency_countdown(self):
-        """15 saniye geri sayım"""
-        self.emergency_countdown = 15
-        self.emergency_active = True
-        self.update_countdown()
     
-    def update_countdown(self):
-        """Geri sayım güncellemesi"""
-        if hasattr(self, 'emergency_active') and self.emergency_active:
-            if self.emergency_countdown > 0:
-                # Countdown labelını güncelle
-                if hasattr(self, 'countdown_label'):
-                    self.countdown_label.configure(
-                        text=f"Sistem {self.emergency_countdown} saniye içinde kapanacak..."
-                    )
-                
-                # Emergency butonu yanıp sönme efekti
-                if self.emergency_countdown % 2 == 0:
-                    self.emergency_button.configure(fg_color="#ff0000", text="🚨 ACTİVE! 🚨")
-                else:
-                    self.emergency_button.configure(fg_color="#990000", text="⚠️ DURDUR ⚠️")
-                
-                # Log güncelleme
-                self.log_module.add_log(f"⏰ Kapanmaya {self.emergency_countdown} saniye...")
-                
-                self.emergency_countdown -= 1
-                
-                # 1 saniye sonra tekrar çağır
-                self.root.after(1000, self.update_countdown)
-            else:
-                # Sistem kapanması
-                self.log_module.add_log("🔴 SİSTEM KAPATILIYOR...")
-                self.root.after(1000, self.force_close)
-    
-    def cancel_emergency(self):
-        """Acil durduru iptal et"""
-        self.emergency_active = False
-        
-        # Popup'ı kapat
-        if hasattr(self, 'emergency_popup'):
-            self.emergency_popup.destroy()
-        
-        # Butonu normale döndür
-        self.emergency_button.configure(
-            fg_color="#cc0000",
-            text="ACİL DURDUR"
-        )
-        
-        # SİSTEMLERİ YENİDEN BAŞLAT
-        self._restart_all_systems()
-        
-        # Sistem durumunu güncelle
-        self.status_module.update_status("Sistem Hazır", "#00ff88")
-        self.log_module.add_log("✅ Acil durdur iptal edildi - Sistem normale döndü")
+
     
     def _restart_all_systems(self):
         """Acil durumdan sonra sistemleri yeniden başlat"""
@@ -1632,21 +1801,22 @@ class SkyShieldMainGUI:
                 if hasattr(self.camera_module, 'status_icon'):
                     self.camera_module.status_icon.configure(text="⚠️")
             
+            # KONTROL BUTONLARINI YENİDEN AKTİF ET
+            if hasattr(self, 'control_module'):
+                # Tüm butonları tekrar aktif et
+                for widget in self.control_module.frame.winfo_children():
+                    if isinstance(widget, ctk.CTkButton):
+                        widget.configure(state="normal")
+            
             self.log_module.add_log("🟢 Kamera sistemleri yeniden başlatıldı")
             self.log_module.add_log("🟢 Hedef takip sistemleri aktif")
             self.log_module.add_log("🟢 Animasyonlar yeniden başladı")
+            self.log_module.add_log("🟢 Kontrol butonları aktif")
             
         except Exception as e:
             print(f"[RESTART] Sistem yeniden başlatma hatası: {e}")
             self.log_module.add_log(f"❌ Sistem yeniden başlatma hatası: {e}")
     
-    def force_close(self):
-        """Zorla kapat"""
-        try:
-            self.root.quit()
-            self.root.destroy()
-        except:
-            pass
         
     def _return_to_menu(self):
         """Ana menüye dön"""
