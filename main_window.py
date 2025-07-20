@@ -4,6 +4,7 @@ import threading
 import time
 import math
 import random
+from controllers.Rasberrypi_Controller import RaspberryController
 try:
     import numpy as np
     import cv2
@@ -1245,6 +1246,10 @@ class SkyShieldMainGUI:
 
         self.setup_main_gui()
         self.setup_modules()
+        # Raspberry Pi kontrolcüsü
+        self.raspberry = RaspberryController()
+        self.raspberry.start_connection()
+        
 
         
     def center_window(self):
@@ -1396,10 +1401,22 @@ class SkyShieldMainGUI:
         self.emergency_button.pack(padx=10, pady=10)
         
     def start_system(self):
+            # İLK DEFA sistem modunu gönder
+        self.raspberry.update_system_mode(self.phase)
+        
+        # Sistem aktif durumunu gönder
+        self.raspberry.update_system_active(True)
+        
+        # Aşamaya göre özel komut
+        if self.phase > 0:
+            self.raspberry.send_phase_command(self.phase)
+    
+   
         self.status_module.update_status("Sistem Aktif", "#00ff88")
         self.log_module.add_log("Sistem başlatıldı")
         
     def stop_system(self):
+        self.raspberry.update_system_active(False)
         self.status_module.update_status("Sistem Durduruldu", "#ff6666")
         self.log_module.add_log("Sistem durduruldu")
         
