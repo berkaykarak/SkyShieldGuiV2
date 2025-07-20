@@ -1,4 +1,4 @@
-# gui/controllers/app_controller.py
+# gui/controllers/app_controller.py - UPDATED VERSION
 import queue
 import threading
 import time
@@ -6,6 +6,12 @@ from datetime import datetime, timedelta
 from typing import Dict, Any, Callable, Optional, List
 from dataclasses import dataclass
 from enum import Enum
+import sys
+import os
+sys.path.append(os.path.dirname(os.path.dirname(__file__)))
+
+# Communication Manager'ı import et
+from communication.communication_manager import CommunicationManager
 
 class SystemMode(Enum):
     """Sistem modları"""
@@ -57,6 +63,10 @@ class SystemState:
     start_time: datetime = None
     last_update: datetime = None
     
+    # Raspberry Pi bağlantı durumu
+    raspberry_connected: bool = False
+    camera_connected: bool = False
+    
     def __post_init__(self):
         if self.target is None:
             self.target = TargetData()
@@ -68,17 +78,20 @@ class SystemState:
 class AppController:
     """
     Uygulama mantığını yöneten ana kontrolcü sınıfı
-    GUI ve sistem arasındaki köprü görevi görür
+    GUI ve Raspberry Pi arasındaki köprü görevi görür
+    HTTP iletişimi ile entegre edildi
     """
     
-    def __init__(self):
-        # İletişim kuyruğu
+    def __init__(self, raspberry_ip: str = "localhost"):
+        # İletişim kuyruğu (legacy support için)
         self.command_queue = queue.Queue()
         self.status_queue = queue.Queue()
-        self.target_queue = queue.Queue()  # PUC process ile iletişim
         
         # Sistem durumu
         self.state = SystemState()
+        
+        # Communication Manager
+        self.comm_manager = CommunicationManager(raspberry_ip)
         
         # Callback'ler
         self.callbacks: Dict[str, List[Callable]] = {}
@@ -95,29 +108,61 @@ class AppController:
         self.stats = {
             'commands_sent': 0,
             'updates_received': 0,
+            'frames_received': 0,
             'errors': 0,
             'uptime': timedelta(0)
         }
+        
+        # Communication Manager callback'lerini kur
+        self._setup_communication_callbacks()
+        
+        print("[APP CONTROLLER] HTTP Communication ile oluşturuldu")
+    
+    def _setup_communication_callbacks(self):
+        """Communication Manager callback'lerini kur"""
+        self.comm_manager.register_data_callback(self._on_raspberry_data_received)
+        self.comm_manager.register_frame_callback(self._on_raspberry_frame_received)
+        self.comm_manager.register_connection_callback(self._on_raspberry_connection_changed)
+        self.comm_manager.register_error_callback(self._on_raspberry_error)
     
     def start(self) -> None:
         """Kontrolcüyü başlat"""
         if not self.running:
             self.running = True
             self.state.start_time = datetime.now()
+            
+            # Communication Manager'ı başlat
+            raspberry_connected = self.comm_manager.start_communication()
+            self.state.raspberry_connected = raspberry_connected
+            
+            # Update thread'ini başlat
             self.update_thread = threading.Thread(target=self._update_loop, daemon=True)
             self.update_thread.start()
-            self.add_log("App Controller başlatıldı")
+            
+            log_msg = "App Controller başlatıldı"
+            if raspberry_connected:
+                log_msg += " (Raspberry Pi bağlı)"
+            else:
+                log_msg += " (Raspberry Pi bağlantısı yok)"
+            
+            self.add_log(log_msg)
     
     def stop(self) -> None:
         """Kontrolcüyü durdur"""
         self.running = False
+        
+        # Communication Manager'ı durdur
+        self.comm_manager.stop_communication()
+        
+        # Update thread'ini bekle
         if self.update_thread:
             self.update_thread.join(timeout=1.0)
+        
         self.add_log("App Controller durduruldu")
     
     def send_command(self, command: str, data: Any = None) -> None:
         """
-        Komut gönder
+        Komut gönder - Hem local hem Raspberry Pi'ye
         Args:
             command: Komut adı
             data: Komut verisi
@@ -129,16 +174,98 @@ class AppController:
             'id': self.stats['commands_sent']
         }
         
+        # Legacy queue'ya ekle
         self.command_queue.put(command_data)
-        self.stats['commands_sent'] += 1
         
-        # Komut işle
+        # Local olarak işle
         self._process_command(command, data)
         
-        self.add_log(f"Komut gönderildi: {command}")
+        # Raspberry Pi'ye gönder
+        raspberry_success = self._send_command_to_raspberry(command, data)
+        
+        self.stats['commands_sent'] += 1
+        
+        log_msg = f"Komut gönderildi: {command}"
+        if raspberry_success:
+            log_msg += " (Raspberry Pi'ye gönderildi)"
+        else:
+            log_msg += " (Sadece local)"
+        
+        self.add_log(log_msg)
+    
+    def _send_command_to_raspberry(self, command: str, data: Any) -> bool:
+        """Komutu Raspberry Pi'ye gönder"""
+        if not self.state.raspberry_connected:
+            return False
+        
+        try:
+            # Komuta göre uygun Raspberry format oluştur
+            raspberry_data = self._convert_command_to_raspberry_format(command, data)
+            
+            if raspberry_data:
+                return self.comm_manager.send_command(raspberry_data)
+            
+            return False
+            
+        except Exception as e:
+            self.add_log(f"Raspberry komut gönderme hatası: {e}", "ERROR")
+            return False
+    
+    def _convert_command_to_raspberry_format(self, command: str, data: Any) -> Optional[Dict[str, Any]]:
+        """GUI komutunu Raspberry formatına çevir"""
+        raspberry_data = {}
+        
+        if command == "change_mode":
+            raspberry_data = {"system_mode": data}
+            
+        elif command == "start_system":
+            raspberry_data = {"system_active": True}
+            
+        elif command == "stop_system":
+            raspberry_data = {"system_active": False}
+            
+        elif command == "emergency_stop":
+            raspberry_data = {
+                "emergency_stop": True,
+                "system_active": False,
+                "fire_gui_flag": False,
+                "engagement_started_flag": False
+            }
+            
+        elif command == "fire_weapon":
+            raspberry_data = {
+                "fire_gui_flag": True,
+                "engagement_started_flag": True
+            }
+            
+        elif command == "start_scan":
+            raspberry_data = {
+                "scanning_target_flag": True,
+                "system_active": True
+            }
+            
+        elif command == "select_weapon":
+            weapon_map = {
+                WeaponType.LASER: "L",
+                WeaponType.AIRGUN: "A", 
+                WeaponType.AUTO: "Auto"
+            }
+            raspberry_data = {"weapon": weapon_map.get(data, "E")}
+            
+        elif command == "calibrate_joystick":
+            raspberry_data = {"calibration_flag": True}
+            
+        elif command == "update_target_position":
+            if isinstance(data, dict) and 'x' in data and 'y' in data:
+                raspberry_data = {
+                    "x_target": data['x'],
+                    "y_target": data['y']
+                }
+        
+        return raspberry_data if raspberry_data else None
     
     def _process_command(self, command: str, data: Any) -> None:
-        """Komutları işle"""
+        """Komutları local olarak işle"""
         try:
             if command == "change_mode":
                 self.state.mode = SystemMode(data)
@@ -166,52 +293,130 @@ class AppController:
                     self.trigger_event("scan_started")
                     
             elif command == "select_weapon":
-                self.state.selected_weapon = WeaponType(data)
+                if isinstance(data, WeaponType):
+                    self.state.selected_weapon = data
+                elif isinstance(data, str):
+                    # String'den WeaponType'a dönüştür
+                    weapon_map = {
+                        "Laser": WeaponType.LASER,
+                        "Airgun": WeaponType.AIRGUN,
+                        "Auto": WeaponType.AUTO
+                    }
+                    self.state.selected_weapon = weapon_map.get(data, WeaponType.NONE)
+                
                 self.trigger_event("weapon_selected", self.state.selected_weapon)
                 
         except Exception as e:
             self.stats['errors'] += 1
-            self.add_log(f"Komut işleme hatası: {e}")
+            self.add_log(f"Komut işleme hatası: {e}", "ERROR")
+    
+    def _on_raspberry_data_received(self, data: Dict[str, Any]):
+        """Raspberry Pi'den veri alındığında"""
+        try:
+            # Raspberry formatını GUI formatına çevir
+            gui_data = self._convert_raspberry_data_to_gui_format(data)
+            
+            # Sistem durumunu güncelle
+            self.update_target_data(gui_data)
+            
+            self.stats['updates_received'] += 1
+            self.add_log(f"Raspberry'den veri alındı", "DEBUG")
+            
+        except Exception as e:
+            self.add_log(f"Raspberry veri işleme hatası: {e}", "ERROR")
+    
+    def _on_raspberry_frame_received(self, frame):
+        """Raspberry Pi'den frame alındığında"""
+        try:
+            self.stats['frames_received'] += 1
+            
+            # Frame'i GUI'ye aktar
+            self.trigger_event("frame_received", frame)
+            
+        except Exception as e:
+            self.add_log(f"Frame işleme hatası: {e}", "ERROR")
+    
+    def _on_raspberry_connection_changed(self, connected: bool, details: Dict[str, Any]):
+        """Raspberry Pi bağlantı durumu değiştiğinde"""
+        self.state.raspberry_connected = details.get('data_connected', False)
+        self.state.camera_connected = details.get('camera_connected', False)
+        
+        status = "bağlandı" if connected else "bağlantı kesildi"
+        self.add_log(f"Raspberry Pi {status}")
+        
+        self.trigger_event("raspberry_connection_changed", {
+            'connected': connected,
+            'details': details
+        })
+    
+    def _on_raspberry_error(self, error_message: str):
+        """Raspberry Pi hata oluştuğunda"""
+        self.stats['errors'] += 1
+        self.add_log(f"Raspberry Pi hatası: {error_message}", "ERROR")
+        self.trigger_event("raspberry_error", error_message)
+    
+    def _convert_raspberry_data_to_gui_format(self, raspberry_data: Dict[str, Any]) -> Dict[str, Any]:
+        """Raspberry formatını GUI formatına çevir"""
+        gui_data = {}
+        
+        # Hedef pozisyonu
+        if 'x_target' in raspberry_data:
+            gui_data['target_x'] = float(raspberry_data['x_target'])
+        if 'y_target' in raspberry_data:
+            gui_data['target_y'] = float(raspberry_data['y_target'])
+        
+        # Motor açıları
+        if 'global_angle' in raspberry_data:
+            gui_data['pan_angle'] = float(raspberry_data['global_angle'])
+        if 'global_tilt_angle' in raspberry_data:
+            gui_data['tilt_angle'] = float(raspberry_data['global_tilt_angle'])
+        
+        # Sistem durumu
+        if 'system_mode' in raspberry_data:
+            gui_data['mode'] = int(raspberry_data['system_mode'])
+        if 'target_destroyed_flag' in raspberry_data:
+            gui_data['target_destroyed'] = bool(raspberry_data['target_destroyed_flag'])
+        if 'scanning_target_flag' in raspberry_data:
+            gui_data['scanning'] = bool(raspberry_data['scanning_target_flag'])
+        if 'target_detected_flag' in raspberry_data:
+            gui_data['target_locked'] = bool(raspberry_data['target_detected_flag'])
+        
+        # Mühimmat
+        if 'weapon' in raspberry_data:
+            weapon_map = {
+                'L': 'Laser',
+                'A': 'Airgun',
+                'E': 'None'
+            }
+            gui_data['weapon'] = weapon_map.get(raspberry_data['weapon'], 'Auto')
+        
+        return gui_data
     
     def register_callback(self, event: str, callback: Callable) -> None:
-        """
-        Olay dinleyicisi kaydet
-        Args:
-            event: Olay adı
-            callback: Çağırılacak fonksiyon
-        """
+        """Olay dinleyicisi kaydet"""
         if event not in self.callbacks:
             self.callbacks[event] = []
         self.callbacks[event].append(callback)
     
     def trigger_event(self, event: str, data: Any = None) -> None:
-        """
-        Olay tetikle
-        Args:
-            event: Olay adı
-            data: Olay verisi
-        """
+        """Olay tetikle"""
         if event in self.callbacks:
             for callback in self.callbacks[event]:
                 try:
                     callback(data)
                 except Exception as e:
-                    self.add_log(f"Callback hatası [{event}]: {e}")
+                    self.add_log(f"Callback hatası [{event}]: {e}", "ERROR")
     
     def update_target_data(self, target_data: Dict[str, Any]) -> None:
-        """
-        Hedef verilerini güncelle (PUC process'ten gelir)
-        Args:
-            target_data: Hedef veri sözlüğü
-        """
+        """Hedef verilerini güncelle"""
         if not target_data:
             return
             
         # Hedef bilgilerini güncelle
-        if 'x_target' in target_data:
-            self.state.target.x = target_data['x_target']
-        if 'y_target' in target_data:
-            self.state.target.y = target_data['y_target']
+        if 'target_x' in target_data:
+            self.state.target.x = target_data['target_x']
+        if 'target_y' in target_data:
+            self.state.target.y = target_data['target_y']
         if 'distance' in target_data:
             self.state.target.distance = target_data['distance']
         if 'speed' in target_data:
@@ -219,7 +424,13 @@ class AppController:
         if 'target_locked' in target_data:
             self.state.target.locked = target_data['target_locked']
         if 'weapon' in target_data:
-            self.state.selected_weapon = WeaponType(target_data['weapon'])
+            weapon_map = {
+                'Laser': WeaponType.LASER,
+                'Airgun': WeaponType.AIRGUN,
+                'Auto': WeaponType.AUTO,
+                'None': WeaponType.NONE
+            }
+            self.state.selected_weapon = weapon_map.get(target_data['weapon'], WeaponType.NONE)
         
         # Motor pozisyonları
         if 'pan_angle' in target_data:
@@ -227,11 +438,22 @@ class AppController:
         if 'tilt_angle' in target_data:
             self.state.tilt_angle = target_data['tilt_angle']
         
+        # İstatistik güncellemeleri
+        if 'target_destroyed' in target_data and target_data['target_destroyed']:
+            self.state.targets_destroyed += 1
+        
         self.state.last_update = datetime.now()
-        self.stats['updates_received'] += 1
         
         # GUI'yi güncelle
         self.trigger_event("data_updated", self.get_state_dict())
+    
+    def get_current_frame_for_gui(self, width: int = None, height: int = None):
+        """GUI için mevcut kamera frame'ini al"""
+        return self.comm_manager.get_current_frame_for_gui(width, height)
+    
+    def save_current_frame(self, filename: str) -> bool:
+        """Mevcut frame'i kaydet"""
+        return self.comm_manager.save_current_frame(filename)
     
     def get_state_dict(self) -> Dict[str, Any]:
         """Sistem durumunu sözlük olarak döndür"""
@@ -247,6 +469,10 @@ class AppController:
             'mode_name': self.state.mode.name,
             'active': self.state.active,
             'emergency_stop': self.state.emergency_stop,
+            
+            # Bağlantı durumu
+            'raspberry_connected': self.state.raspberry_connected,
+            'camera_connected': self.state.camera_connected,
             
             # Hedef bilgileri
             'target_locked': self.state.target.locked,
@@ -268,22 +494,18 @@ class AppController:
             'targets_detected': self.state.targets_detected,
             'targets_destroyed': self.state.targets_destroyed,
             'success_rate': success_rate,
-            'uptime': str(uptime).split('.')[0],  # Mikrosaniye kısmını kaldır
+            'uptime': str(uptime).split('.')[0],
             
             # Sistem bilgileri
             'last_update': self.state.last_update.strftime("%H:%M:%S"),
             'commands_sent': self.stats['commands_sent'],
             'updates_received': self.stats['updates_received'],
+            'frames_received': self.stats['frames_received'],
             'errors': self.stats['errors']
         }
     
     def add_log(self, message: str, level: str = "INFO") -> None:
-        """
-        Log mesajı ekle
-        Args:
-            message: Log mesajı
-            level: Log seviyesi (INFO, WARNING, ERROR)
-        """
+        """Log mesajı ekle"""
         timestamp = datetime.now().strftime("%H:%M:%S")
         log_entry = f"[{timestamp}] [{level}] {message}"
         
@@ -304,9 +526,6 @@ class AppController:
         """Ana güncelleme döngüsü"""
         while self.running:
             try:
-                # PUC process'ten veri kontrolü
-                self._check_target_queue()
-                
                 # Sistem durumunu güncelle
                 self._update_system_status()
                 
@@ -319,15 +538,6 @@ class AppController:
                 self.stats['errors'] += 1
                 self.add_log(f"Update loop hatası: {e}", "ERROR")
                 time.sleep(0.5)
-    
-    def _check_target_queue(self) -> None:
-        """Hedef kuyruğunu kontrol et"""
-        try:
-            while not self.target_queue.empty():
-                target_data = self.target_queue.get_nowait()
-                self.update_target_data(target_data)
-        except queue.Empty:
-            pass
     
     def _update_system_status(self) -> None:
         """Sistem durumunu güncelle"""
@@ -342,25 +552,40 @@ class AppController:
     
     def _update_statistics(self) -> None:
         """İstatistikleri güncelle"""
-        # Bu metot gerçek sistemde daha karmaşık olabilir
-        pass
-    
-    def connect_to_puc_process(self, target_queue_ref, system_mode_ref, target_destroyed_flag_ref):
-        """
-        PUC process ile bağlantı kur
-        Args:
-            target_queue_ref: PUC process'in target_queue referansı
-            system_mode_ref: Sistem modu shared variable referansı
-            target_destroyed_flag_ref: Hedef imha flag referansı
-        """
-        self.target_queue = target_queue_ref
-        self.system_mode_ref = system_mode_ref
-        self.target_destroyed_flag_ref = target_destroyed_flag_ref
+        # Communication Manager istatistikleri al
+        comm_status = self.comm_manager.get_system_status()
+        comm_stats = comm_status.get('stats', {})
         
-        self.add_log("PUC Process ile bağlantı kuruldu")
+        # Kendi istatistiklerimizi güncelle
+        self.stats['commands_sent'] = comm_stats.get('commands_sent', self.stats['commands_sent'])
+        self.stats['frames_received'] = comm_stats.get('frames_received', self.stats['frames_received'])
+    
+    def get_communication_status(self) -> Dict[str, Any]:
+        """İletişim durumu detayları"""
+        return self.comm_manager.get_system_status()
+    
+    # Kolay kullanım için kısayol metodlar
+    def set_raspberry_ip(self, ip: str):
+        """Raspberry Pi IP adresini değiştir"""
+        # Mevcut bağlantıyı durdur
+        self.comm_manager.stop_communication()
+        
+        # Yeni IP ile yeni Communication Manager oluştur
+        self.comm_manager = CommunicationManager(ip)
+        self._setup_communication_callbacks()
+        
+        # Yeniden bağlan
+        if self.running:
+            raspberry_connected = self.comm_manager.start_communication()
+            self.state.raspberry_connected = raspberry_connected
+            
+            self.add_log(f"Raspberry Pi IP değiştirildi: {ip}")
     
     def simulate_data(self) -> None:
-        """Test için veri simülasyonu"""
+        """Test için veri simülasyonu (Raspberry Pi bağlı değilse)"""
+        if self.state.raspberry_connected:
+            return  # Gerçek veri varsa simülasyon yapma
+            
         import random
         
         if not self.state.active:
@@ -368,8 +593,8 @@ class AppController:
             
         # Rastgele hedef verisi
         simulated_data = {
-            'x_target': random.randint(300, 400),
-            'y_target': random.randint(350, 450),
+            'target_x': random.randint(300, 400),
+            'target_y': random.randint(350, 450),
             'distance': random.uniform(50, 500),
             'speed': random.uniform(0, 25),
             'target_locked': random.choice([True, False]),
@@ -377,5 +602,3 @@ class AppController:
             'pan_angle': random.uniform(-180, 180),
             'tilt_angle': random.uniform(-75, 75)
         }
-        
-        self.update_target_data(simulated_data)

@@ -4,19 +4,13 @@ import threading
 import time
 import math
 import random
-from controllers.Rasberrypi_Controller import RaspberryController
-try:
-    import numpy as np
-    import cv2
-    OPENCV_AVAILABLE = True
-except ImportError:
-    OPENCV_AVAILABLE = False
-    print("[WARNING] OpenCV veya NumPy bulunamadı. Basit simülasyon kullanılacak.")
+from controllers.app_controller import AppController 
+import numpy as np  
 
 from PIL import Image, ImageTk
 from datetime import datetime
 from PIL import Image, ImageTk
-import os                    # ← SkyShield logosunu yüklemek için
+import os                   
 
 # CustomTkinter ayarları
 ctk.set_appearance_mode("dark")
@@ -534,66 +528,145 @@ class WeaponModule(BaseModule):
 
 
 
-
-class CameraModule(BaseModule):
-    """Profesyonel askeri kamera modülü"""
-    def __init__(self, parent, phase):
-        super().__init__(parent, f"KAMERA GÖRÜNTÜSÜ - AŞAMA {phase}")
+class UpdatedCameraModule:
+    """
+    Raspberry Pi'den gerçek kamera akışı alan kamera modülü
+    AppController ile entegre edildi
+    """
+    
+    def __init__(self, parent, app_controller, phase):
+        self.parent = parent
+        self.app = app_controller
         self.phase = phase
-        self.camera_active = False
+        
+        # Kamera durumu
+        self.camera_active = True
         self.target_locked = False
+        self.recording = False
+        
+        # Hedef pozisyonu (simülasyon + gerçek veri)
         self.target_x = 320
         self.target_y = 240
-        self.setup_module()
         
-    def setup_module(self):
-        # Başlık kaldırıldı, direkt kamera alanı
+        # UI referansları
+        self.camera_container = None
+        self.camera_label = None
+        self.status_text = None
+        self.status_icon = None
+        self.record_button = None
+        self.snapshot_button = None
+        self.lock_button = None
         
-        # Ana kamera container - Siyah askeri tema
+        # Frame yönetimi
+        self.current_frame = None
+        self.default_frame_created = False
+        
+        self.setup_ui()
+        self._register_app_callbacks()
+        
+        print(f"[CAMERA MODULE] Oluşturuldu - Aşama {phase}")
+    
+    def setup_ui(self):
+        """Kamera modülü UI'ını oluştur"""
+        # Ana kamera container
         self.camera_container = ctk.CTkFrame(
-            self.frame, 
-            fg_color="#000000",  # Siyah arka plan
+            self.parent, 
+            fg_color="#000000",
             corner_radius=0,
             border_width=2,
-            border_color="#ffff00"  # Sarı çerçeve
+            border_color="#ffff00"
         )
         self.camera_container.pack(fill="both", expand=True, padx=5, pady=5)
         
-        # Kamera canvas - askeri targeting sistemi
-        self.camera_canvas = tk.Canvas(
+        # Kamera görüntü alanı
+        self.camera_label = ctk.CTkLabel(
             self.camera_container,
-            bg="#000000",
+            text="",
             width=500,
-            height=350,
-            highlightthickness=0,
-            bd=0
+            height=350
         )
-        self.camera_canvas.pack(fill="both", expand=True, padx=10, pady=10)
+        self.camera_label.pack(fill="both", expand=True, padx=10, pady=10)
         
-        # İLK AÇILIŞTA KAMERA AKTİF OLSUN
-        self.camera_active = True
-        
-        # Targeting crosshair ve overlay'leri başlat
-        self.setup_targeting_system()
+        # İlk başta default frame göster
+        self._create_default_frame()
         
         # Alt durum çubuğu
-        self.create_status_bar()
+        self._create_status_bar()
         
         # Kamera kontrolleri
-        self.create_camera_controls()
+        self._create_camera_controls()
         
-        # Animasyon başlat
-        self.start_targeting_animation()
+        print("[CAMERA MODULE] UI oluşturuldu")
+    
+    def _register_app_callbacks(self):
+        """AppController callback'lerini kaydet"""
+        # Frame alındığında
+        self.app.register_callback("frame_received", self._on_frame_received)
         
-    def setup_targeting_system(self):
-        """Askeri targeting sistemi kuruşu"""
-        canvas = self.camera_canvas
+        # Raspberry Pi bağlantı durumu değiştiğinde
+        self.app.register_callback("raspberry_connection_changed", self._on_connection_changed)
         
-        # Ana crosshair (artı işareti) - Merkez
+        # Veri güncellendiğinde
+        self.app.register_callback("data_updated", self._on_data_updated)
+        
+        print("[CAMERA MODULE] Callback'ler kaydedildi")
+    
+    def _create_default_frame(self):
+        """Varsayılan kamera frame'i oluştur"""
+        try:
+            # Siyah arka plan ile targeting sistemi
+            img = Image.new('RGB', (500, 350), color='black')
+            
+            # PIL Image'ı Tkinter PhotoImage'a çevir
+            self.current_frame = ImageTk.PhotoImage(img)
+            self.camera_label.configure(image=self.current_frame)
+            
+            # Targeting overlay'ini canvas ile ekle
+            self._create_targeting_overlay()
+            
+            self.default_frame_created = True
+            print("[CAMERA MODULE] Varsayılan frame oluşturuldu")
+            
+        except Exception as e:
+            print(f"[CAMERA MODULE] Varsayılan frame oluşturma hatası: {e}")
+            self.camera_label.configure(text="📷 KAMERA HAZIR")
+    
+    def _create_targeting_overlay(self):
+        """Targeting sistemi overlay'i (Canvas ile)"""
+        try:
+            # Eğer zaten canvas varsa kaldır
+            if hasattr(self, 'targeting_canvas'):
+                self.targeting_canvas.destroy()
+            
+            # Targeting canvas oluştur
+            self.targeting_canvas = tk.Canvas(
+                self.camera_container,
+                bg='black',
+                highlightthickness=0,
+                width=500,
+                height=350
+            )
+            self.targeting_canvas.place(x=10, y=10, width=500, height=350)
+            
+            # Crosshair çiz
+            self._draw_targeting_elements()
+            
+        except Exception as e:
+            print(f"[CAMERA MODULE] Targeting overlay hatası: {e}")
+    
+    def _draw_targeting_elements(self):
+        """Targeting elementlerini çiz"""
+        if not hasattr(self, 'targeting_canvas'):
+            return
+            
+        canvas = self.targeting_canvas
+        canvas.delete("all")  # Önceki çizimleri temizle
+        
+        # Merkez crosshair
         canvas.create_line(250, 160, 250, 190, fill="#ffff00", width=2, tags="crosshair")
         canvas.create_line(235, 175, 265, 175, fill="#ffff00", width=2, tags="crosshair")
         
-        # Köşe çerçeveleri (targeting brackets)
+        # Köşe çerçeveleri
         # Sol üst
         canvas.create_line(50, 50, 80, 50, fill="#ffff00", width=3, tags="brackets")
         canvas.create_line(50, 50, 50, 80, fill="#ffff00", width=3, tags="brackets")
@@ -615,46 +688,124 @@ class CameraModule(BaseModule):
             canvas.create_line(i, 0, i, 350, fill="#333333", width=1, tags="grid")
         for i in range(50, 300, 50):
             canvas.create_line(0, i, 500, i, fill="#333333", width=1, tags="grid")
+        
+        # Hedef göstergesi
+        self._draw_target_indicator()
+    
+    def _draw_target_indicator(self):
+        """Hedef göstergesini çiz"""
+        if not hasattr(self, 'targeting_canvas'):
+            return
             
-        # Hedef simülasyonu - Drone/Uçak
-        self.create_target_drone()
+        canvas = self.targeting_canvas
         
-    def create_target_drone(self):
-        """3D Drone/Uçak simülasyonu"""
-        canvas = self.camera_canvas
+        # Önceki hedef göstergelerini temizle
+        canvas.delete("target")
         
-        # Drone gövdesi
+        # Hedef noktası
         canvas.create_oval(
-            self.target_x-15, self.target_y-8, 
-            self.target_x+15, self.target_y+8, 
-            fill="#888888", outline="#ffffff", width=2, tags="drone"
-        )
-        
-        # Drone kanatları
-        canvas.create_line(
-            self.target_x-25, self.target_y, self.target_x+25, self.target_y,
-            fill="#666666", width=4, tags="drone"
-        )
-        canvas.create_line(
-            self.target_x, self.target_y-15, self.target_x, self.target_y+15,
-            fill="#666666", width=3, tags="drone"
+            self.target_x - 10, self.target_y - 10,
+            self.target_x + 10, self.target_y + 10,
+            outline="#ff0000", width=2, tags="target"
         )
         
         # Hedef kilidi çerçevesi
         if self.target_locked:
             canvas.create_rectangle(
-                self.target_x-30, self.target_y-25,
-                self.target_x+30, self.target_y+25,
-                outline="#ff0000", width=2, tags="target_lock"
+                self.target_x - 30, self.target_y - 30,
+                self.target_x + 30, self.target_y + 30,
+                outline="#ff0000", width=2, tags="target"
             )
             canvas.create_text(
-                self.target_x, self.target_y-35,
+                self.target_x, self.target_y - 40,
                 text="LOCKED", fill="#ff0000", 
-                font=("Arial", 10, "bold"), tags="target_lock"
+                font=("Arial", 10, "bold"), tags="target"
             )
-        
-    def create_status_bar(self):
-        """Alt durum çubuğu - askeri sistem"""
+    
+    def _on_frame_received(self, frame_data):
+        """Raspberry Pi'den frame alındığında"""
+        try:
+            if isinstance(frame_data, np.ndarray):
+                # NumPy array'i PIL Image'a çevir
+                pil_image = Image.fromarray(frame_data)
+                
+                # Boyutlandır
+                pil_image = pil_image.resize((500, 350), Image.Resampling.LANCZOS)
+                
+                # Tkinter PhotoImage'a çevir
+                self.current_frame = ImageTk.PhotoImage(pil_image)
+                
+                # Label'ı güncelle
+                self.camera_label.configure(image=self.current_frame)
+                
+                # Targeting overlay'ini güncelle
+                self._draw_targeting_elements()
+                
+                print("[CAMERA MODULE] Frame güncellendi")
+                
+        except Exception as e:
+            print(f"[CAMERA MODULE] Frame işleme hatası: {e}")
+    
+    def _on_connection_changed(self, connection_data):
+        """Raspberry Pi bağlantı durumu değiştiğinde"""
+        try:
+            connected = connection_data.get('connected', False) if connection_data else False
+            details = connection_data.get('details', {}) if connection_data else {}
+            camera_connected = details.get('camera_connected', False)
+            
+            if camera_connected:
+                self.status_text.configure(text="SİSTEM DURUMU: Kamera Bağlı")
+                self.status_icon.configure(text="📹")
+            elif connected:
+                self.status_text.configure(text="SİSTEM DURUMU: Veri Bağlı (Kamera Yok)")
+                self.status_icon.configure(text="📡")
+            else:
+                self.status_text.configure(text="SİSTEM DURUMU: Bağlantı Yok")
+                self.status_icon.configure(text="❌")
+                # Varsayılan frame'e dön
+                if self.default_frame_created:
+                    self._create_default_frame()
+            
+            print(f"[CAMERA MODULE] Bağlantı durumu: {connected}, Kamera: {camera_connected}")
+            
+        except Exception as e:
+            print(f"[CAMERA MODULE] Bağlantı durumu güncelleme hatası: {e}")
+    
+    def _on_data_updated(self, data):
+        """Veri güncellendiğinde GUI modüllerini güncelle"""
+        try:
+            # GUI thread'inde olduğumuzdan emin ol
+            if not hasattr(self.root, 'winfo_exists') or not self.root.winfo_exists():
+                return
+            
+            # Sol panel modüllerini güncelle
+            if hasattr(self, 'coords_module') and data:
+                if 'pan_angle' in data and 'tilt_angle' in data:
+                    self.coords_module.update_coordinates(
+                        distance=data.get('distance', '--'),
+                        pan=f"{data['pan_angle']:.1f}",
+                        tilt=f"{data['tilt_angle']:.1f}",
+                        speed=data.get('speed', '--')
+                    )
+            
+            # Sistem durumu güncelle
+            if hasattr(self, 'status_module') and data:
+                if data.get('target_locked'):
+                    self.status_module.update_status("Hedef Kilitli", "#00ff88")
+                    self.status_module.update_progress(1.0)
+                elif data.get('active'):
+                    self.status_module.update_status("Sistem Aktif", "#ffaa00")
+                    self.status_module.update_progress(0.5)
+                else:
+                    self.status_module.update_status("Sistem Hazır", "#cccccc")
+                    self.status_module.update_progress(0.0)
+            
+        except Exception as e:
+            # Threading hatalarını bastır
+            if "main thread is not in main loop" not in str(e):
+                print(f"[MAIN GUI] Veri güncelleme hatası: {e}")
+    def _create_status_bar(self):
+        """Alt durum çubuğu"""
         status_frame = ctk.CTkFrame(
             self.camera_container,
             fg_color="#1a1a1a",
@@ -669,7 +820,7 @@ class CameraModule(BaseModule):
         
         self.status_icon = ctk.CTkLabel(
             left_frame,
-            text="⚠️",
+            text="📷",
             font=ctk.CTkFont(size=16),
             text_color="#ffff00"
         )
@@ -677,7 +828,7 @@ class CameraModule(BaseModule):
         
         self.status_text = ctk.CTkLabel(
             left_frame,
-            text="SİSTEM DURUMU: Hedefe Kilitlendi",
+            text="SİSTEM DURUMU: Hazır",
             font=ctk.CTkFont(size=12, weight="bold"),
             text_color="#ffff00"
         )
@@ -687,8 +838,7 @@ class CameraModule(BaseModule):
         right_frame = ctk.CTkFrame(status_frame, fg_color="transparent")
         right_frame.pack(side="right", fill="y", padx=10)
         
-        import datetime
-        current_time = datetime.datetime.now().strftime("%H:%M")
+        current_time = datetime.now().strftime("%H:%M")
         
         self.time_label = ctk.CTkLabel(
             right_frame,
@@ -706,9 +856,27 @@ class CameraModule(BaseModule):
         )
         phase_label.pack(side="right", padx=10)
         
-    def create_camera_controls(self):
+        # Zaman güncelleme thread'i
+        self._start_time_update()
+    
+    def _start_time_update(self):
+        """Zaman güncelleme thread'ini başlat"""
+        def update_time():
+            while True:
+                try:
+                    if self.time_label:
+                        current_time = datetime.now().strftime("%H:%M:%S")
+                        self.time_label.configure(text=current_time)
+                except:
+                    break
+                time.sleep(1)
+        
+        time_thread = threading.Thread(target=update_time, daemon=True)
+        time_thread.start()
+    
+    def _create_camera_controls(self):
         """Kamera kontrol butonları"""
-        controls_frame = ctk.CTkFrame(self.frame, fg_color="transparent")
+        controls_frame = ctk.CTkFrame(self.camera_container, fg_color="transparent")
         controls_frame.pack(fill="x", padx=10, pady=5)
         
         # Kayıt butonu
@@ -719,7 +887,7 @@ class CameraModule(BaseModule):
             height=30,
             fg_color="#cc0000",
             hover_color="#990000",
-            command=self.toggle_recording
+            command=self._toggle_recording
         )
         self.record_button.pack(side="left", padx=5)
         
@@ -730,7 +898,7 @@ class CameraModule(BaseModule):
             width=100,
             height=30,
             fg_color="#1f538d",
-            command=self.take_snapshot
+            command=self._take_snapshot
         )
         self.snapshot_button.pack(side="left", padx=5)
         
@@ -742,67 +910,14 @@ class CameraModule(BaseModule):
             height=30,
             fg_color="#ff9800",
             hover_color="#f57c00",
-            command=self.toggle_target_lock
+            command=self._toggle_target_lock
         )
         self.lock_button.pack(side="right", padx=5)
-        
-        self.recording = False
-        
-    def start_targeting_animation(self):
-        """Targeting sistemi animasyonu"""
-        self.animate_targeting()
-        
-    def animate_targeting(self):
-        """Crosshair ve hedef animasyonu"""
-        # Acil durdur kontrolü - animasyonu durdur
-        if not self.camera_active:
-            return
-            
-        if hasattr(self, 'camera_canvas'):
-            canvas = self.camera_canvas
-            
-            # Hedef hareketi (sinüs dalgası)
-            import math
-            t = time.time()
-            self.target_x = 250 + 50 * math.sin(t * 0.5)
-            self.target_y = 175 + 30 * math.cos(t * 0.3)
-            
-            # Eski drone'u temizle
-            canvas.delete("drone")
-            canvas.delete("target_lock")
-            
-            # Yeni drone pozisyonu
-            self.create_target_drone()
-            
-            # Koordinat güncelleme
-            self.update_coordinates()
-            
-            # 100ms sonra tekrar animate et (sadece kamera aktifse)
-            if self.camera_active:
-                self.frame.after(100, self.animate_targeting)
-            
-    def update_coordinates(self):
-        """Koordinat bilgilerini güncelle (soldaki panel için)"""
-        try:
-            # Ana GUI'deki koordinat modülünü güncelle
-            if hasattr(self.parent.master.master, 'coords_module'):
-                coords = self.parent.master.master.coords_module
-                distance = ((self.target_x - 250)**2 + (self.target_y - 175)**2)**0.5
-                pan_angle = (self.target_x - 250) * 0.2
-                tilt_angle = -(self.target_y - 175) * 0.2
-                
-                coords.update_coordinates(
-                    distance=f"{distance:.1f}",
-                    pan=f"{pan_angle:.1f}",
-                    tilt=f"{tilt_angle:.1f}",
-                    speed="12.5"
-                )
-        except:
-            pass
-            
-    def toggle_recording(self):
-        """Kayıt başlat/durdur - GERÇEK video kayıt sistemi"""
+    
+    def _toggle_recording(self):
+        """Kayıt başlat/durdur"""
         self.recording = not self.recording
+        
         if self.recording:
             self.record_button.configure(
                 text="⏹️ KAYIT DURDUR", 
@@ -811,8 +926,9 @@ class CameraModule(BaseModule):
             self.status_text.configure(text="SİSTEM DURUMU: 🔴 KAYIT AKTİF")
             self.status_icon.configure(text="🔴")
             
-            # GERÇEK VIDEO KAYIT BAŞLAT
-            self.start_video_recording()
+            # AppController'a log ekle
+            if hasattr(self.app, 'add_log'):
+                self.app.add_log("📹 Video kaydı başlatıldı")
             
         else:
             self.record_button.configure(
@@ -820,214 +936,100 @@ class CameraModule(BaseModule):
                 fg_color="#cc0000"
             )
             self.status_text.configure(text="SİSTEM DURUMU: Hazır")
-            self.status_icon.configure(text="⚠️")
+            self.status_icon.configure(text="📷")
             
-            # GERÇEK VIDEO KAYDI DURDUR
-            self.stop_video_recording()
+            # AppController'a log ekle
+            if hasattr(self.app, 'add_log'):
+                self.app.add_log("⏹️ Video kaydı durduruldu")
     
-    def start_video_recording(self):
-        """Gerçek video kaydını başlat"""
+    def _take_snapshot(self):
+        """Anlık görüntü al"""
         try:
-            import os
-            
-            # Kayıt klasörü oluştur
-            if not os.path.exists("recordings"):
-                os.makedirs("recordings")
-            
-            # Dosya adı oluştur
-            timestamp = time.strftime("%Y%m%d_%H%M%S")
-            self.video_filename = f"recordings/skyshield_video_{timestamp}.mp4"
-            
-            # Video writer oluştur
-            if OPENCV_AVAILABLE:
-                # MP4 codec kullan (daha uyumlu)
-                fourcc = cv2.VideoWriter_fourcc(*'mp4v')
-                self.video_writer = cv2.VideoWriter(self.video_filename, fourcc, 10.0, (500, 350))
-                
-                if not self.video_writer.isOpened():
-                    # Alternatif codec dene
-                    fourcc = cv2.VideoWriter_fourcc(*'XVID')
-                    self.video_filename = f"recordings/skyshield_video_{timestamp}.avi"
-                    self.video_writer = cv2.VideoWriter(self.video_filename, fourcc, 10.0, (500, 350))
-            
-            # Kayıt frame listesi oluştur
-            self.recorded_frames = []
-            
-            # Log sistemine kayıt başladığını yaz
-            if hasattr(self.parent.master.master, 'log_module'):
-                self.parent.master.master.log_module.add_log("📹 Video kaydı başlatıldı")
-                self.parent.master.master.log_module.add_log(f"📁 Dosya: {self.video_filename}")
-            
-            # Kayıt zamanını başlat
-            self.recording_start_time = time.time()
-            self.update_recording_time()
-            self.capture_frames()
-            
-        except Exception as e:
-            print(f"[RECORDING] Kayıt başlatma hatası: {e}")
-            if hasattr(self.parent.master.master, 'log_module'):
-                self.parent.master.master.log_module.add_log(f"❌ Kayıt hatası: {e}")
-    
-    def capture_frames(self):
-        """Canvas'tan frame yakala ve kaydet"""
-        if self.recording:
-            try:
-                # Canvas'ı bitmap olarak yakala (Windows uyumlu)
-                x = self.camera_canvas.winfo_rootx()
-                y = self.camera_canvas.winfo_rooty()
-                width = self.camera_canvas.winfo_width()
-                height = self.camera_canvas.winfo_height()
-                
-                # PIL ile ekran görüntüsü al
-                from PIL import ImageGrab
-                screenshot = ImageGrab.grab(bbox=(x, y, x+width, y+height))
-                
-                # Boyutu ayarla
-                screenshot = screenshot.resize((500, 350))
-                
-                if OPENCV_AVAILABLE and hasattr(self, 'video_writer'):
-                    # PIL'den OpenCV formatına çevir
-                    import numpy as np
-                    frame = np.array(screenshot)
-                    frame = cv2.cvtColor(frame, cv2.COLOR_RGB2BGR)
-                    
-                    # Video'ya frame ekle
-                    self.video_writer.write(frame)
-                else:
-                    # OpenCV yoksa frame'leri listeye kaydet
-                    self.recorded_frames.append(screenshot)
-                
-                # 100ms sonra tekrar yakala (10 FPS)
-                if self.recording:
-                    self.frame.after(100, self.capture_frames)
-                    
-            except Exception as e:
-                print(f"[RECORDING] Frame yakalama hatası: {e}")
-                # Hata durumunda 200ms bekle ve tekrar dene
-                if self.recording:
-                    self.frame.after(200, self.capture_frames)
-    
-    def stop_video_recording(self):
-        """Gerçek video kaydını durdur"""
-        try:
-            if OPENCV_AVAILABLE and hasattr(self, 'video_writer'):
-                # OpenCV video writer'ı kapat
-                self.video_writer.release()
-                delattr(self, 'video_writer')
-            elif hasattr(self, 'recorded_frames') and self.recorded_frames:
-                # OpenCV yoksa GIF olarak kaydet
-                self.video_filename = self.video_filename.replace('.mp4', '.gif').replace('.avi', '.gif')
-                self.recorded_frames[0].save(
-                    self.video_filename, 
-                    save_all=True, 
-                    append_images=self.recorded_frames[1:], 
-                    duration=100, 
-                    loop=0
-                )
-                self.recorded_frames.clear()
-            
-            # Log sistemine kayıt durdu yazısını yaz
-            if hasattr(self.parent.master.master, 'log_module'):
-                duration = int(time.time() - self.recording_start_time)
-                self.parent.master.master.log_module.add_log(f"⏹️ Video kaydı durduruldu (Süre: {duration}s)")
-                self.parent.master.master.log_module.add_log(f"💾 Video kaydedildi: {self.video_filename}")
-                
-                # Dosya boyutunu göster
-                import os
-                if os.path.exists(self.video_filename):
-                    size_mb = os.path.getsize(self.video_filename) / (1024*1024)
-                    self.parent.master.master.log_module.add_log(f"📊 Dosya boyutu: {size_mb:.2f} MB")
-                
-        except Exception as e:
-            print(f"[RECORDING] Kayıt durdurma hatası: {e}")
-            if hasattr(self.parent.master.master, 'log_module'):
-                self.parent.master.master.log_module.add_log(f"❌ Kayıt durdurma hatası: {e}")
-    
-    def update_recording_time(self):
-        """Kayıt süresini güncelle"""
-        if self.recording and hasattr(self, 'recording_start_time'):
-            duration = int(time.time() - self.recording_start_time)
-            minutes = duration // 60
-            seconds = duration % 60
-            self.status_text.configure(text=f"SİSTEM DURUMU: 🔴 KAYIT {minutes:02d}:{seconds:02d}")
-            
-            # Her saniye güncelle
-            self.frame.after(1000, self.update_recording_time)
-            
-    def take_snapshot(self):
-        """Anlık görüntü al - GERÇEK PNG screenshot"""
-        try:
-            import os
-            from PIL import ImageGrab
-            
-            # Screenshot klasörü oluştur
-            if not os.path.exists("screenshots"):
-                os.makedirs("screenshots")
-            
             # Buton animasyonu
             self.snapshot_button.configure(text="📸 KAYDEDILIYOR...", fg_color="#ff9800")
             
-            # Timestamp oluştur
+            # AppController üzerinden frame kaydet
             timestamp = time.strftime("%Y%m%d_%H%M%S")
             filename = f"screenshots/skyshield_snapshot_{timestamp}.png"
             
-            # Canvas'ın ekran pozisyonunu al
-            x = self.camera_canvas.winfo_rootx()
-            y = self.camera_canvas.winfo_rooty()
-            width = self.camera_canvas.winfo_width()
-            height = self.camera_canvas.winfo_height()
+            success = self.app.save_current_frame(filename)
             
-            # Ekran görüntüsü al
-            screenshot = ImageGrab.grab(bbox=(x, y, x+width, y+height))
-            screenshot.save(filename, "PNG")
-            
-            # Log sistemine ekle
-            if hasattr(self.parent.master.master, 'log_module'):
-                self.parent.master.master.log_module.add_log(f"📸 Anlık görüntü alındı")
-                self.parent.master.master.log_module.add_log(f"💾 Dosya: {filename}")
-                self.parent.master.master.log_module.add_log(f"📍 Hedef konumu: X:{self.target_x:.0f}, Y:{self.target_y:.0f}")
+            if success:
+                # AppController'a log ekle
+                if hasattr(self.app, 'add_log'):
+                    self.app.add_log(f"📸 Anlık görüntü alındı: {filename}")
                 
-                # Dosya boyutunu göster
-                if os.path.exists(filename):
-                    size_kb = os.path.getsize(filename) / 1024
-                    self.parent.master.master.log_module.add_log(f"📊 Dosya boyutu: {size_kb:.1f} KB")
-            
-            # Buton durumunu eski haline getir
-            self.frame.after(1500, lambda: self.snapshot_button.configure(
-                text="📸 SAVED! ✓", fg_color="#00cc44"
-            ))
-            self.frame.after(3000, lambda: self.snapshot_button.configure(
-                text="📸 SNAPSHOT", fg_color="#1f538d"
-            ))
+                # Başarı animasyonu
+                self.snapshot_button.configure(text="📸 SAVED! ✓", fg_color="#00cc44")
+                self.camera_container.after(2000, lambda: self.snapshot_button.configure(
+                    text="📸 SNAPSHOT", fg_color="#1f538d"
+                ))
+            else:
+                # Hata durumu
+                if hasattr(self.app, 'add_log'):
+                    self.app.add_log("❌ Anlık görüntü alınamadı", "ERROR")
+                
+                self.snapshot_button.configure(text="❌ HATA", fg_color="#cc0000")
+                self.camera_container.after(2000, lambda: self.snapshot_button.configure(
+                    text="📸 SNAPSHOT", fg_color="#1f538d"
+                ))
             
         except Exception as e:
-            print(f"[SNAPSHOT] Screenshot hatası: {e}")
-            if hasattr(self.parent.master.master, 'log_module'):
-                self.parent.master.master.log_module.add_log(f"❌ Screenshot hatası: {e}")
-            
-            # Hata durumunda buton durumunu eski haline getir
-            self.frame.after(1000, lambda: self.snapshot_button.configure(
-                text="📸 SNAPSHOT", fg_color="#1f538d"
-            ))
-        
-    def toggle_target_lock(self):
+            print(f"[CAMERA MODULE] Snapshot hatası: {e}")
+            if hasattr(self.app, 'add_log'):
+                self.app.add_log(f"❌ Snapshot hatası: {e}", "ERROR")
+    
+    def _toggle_target_lock(self):
         """Hedef kilidi aç/kapat"""
-        self.target_locked = not self.target_locked
+        # AppController'a komut gönder
         if self.target_locked:
-            self.lock_button.configure(
-                text="🔓 UNLOCK", 
-                fg_color="#00cc44"
-            )
-            self.status_text.configure(text="SİSTEM DURUMU: Hedefe Kilitlendi")
-            self.status_icon.configure(text="🎯")
+            # Unlock
+            self.app.send_command("unlock_target")
         else:
-            self.lock_button.configure(
-                text="🎯 TARGETİNG", 
-                fg_color="#ff9800"
-            )
-            self.status_text.configure(text="SİSTEM DURUMU: Hedef Aranıyor")
-            self.status_icon.configure(text="🔍")
-
+            # Lock
+            self.app.send_command("lock_target")
+        
+        # UI güncellemesi data_updated callback'i ile gelecek
+    
+    def stop_camera(self):
+        """Kamera modülünü durdur"""
+        self.camera_active = False
+        
+        # Targeting canvas'ını temizle
+        if hasattr(self, 'targeting_canvas'):
+            self.targeting_canvas.delete("all")
+            self.targeting_canvas.create_text(250, 175, text="KAMERA DURDURULDU", 
+                                            fill="#ff0000", font=("Arial", 20, "bold"))
+        
+        # Durum güncelle
+        self.status_text.configure(text="SİSTEM DURUMU: Durduruldu")
+        self.status_icon.configure(text="⏹️")
+        
+        print("[CAMERA MODULE] Kamera durduruldu")
+    
+    def restart_camera(self):
+        """Kamera modülünü yeniden başlat"""
+        self.camera_active = True
+        
+        # Targeting overlay'ini yeniden oluştur
+        self._draw_targeting_elements()
+        
+        # Durum güncelle
+        self.status_text.configure(text="SİSTEM DURUMU: Hazır")
+        self.status_icon.configure(text="📷")
+        
+        print("[CAMERA MODULE] Kamera yeniden başlatıldı")
+    
+    def get_module_info(self) -> dict:
+        """Modül bilgilerini döndür"""
+        return {
+            'active': self.camera_active,
+            'recording': self.recording,
+            'target_locked': self.target_locked,
+            'target_position': {'x': self.target_x, 'y': self.target_y},
+            'phase': self.phase,
+            'has_current_frame': self.current_frame is not None
+        }
 class LogModule(BaseModule):
     """Log modülü"""
     def __init__(self, parent):
@@ -1191,13 +1193,53 @@ class SkyShieldMainGUI:
         header_frame.grid_columnconfigure((0, 1, 2), weight=1, uniform="col")
         header_frame.grid_rowconfigure(0, weight=1)
 
-        logo_path = os.path.join("assets", "skyshield_logo.jpg")
-        if os.path.exists(logo_path):
-            img = Image.open(logo_path).resize((100, 100))
-            self.small_logo_img = ImageTk.PhotoImage(img)
-            logo_lbl = ctk.CTkLabel(header_frame, image=self.small_logo_img, text="")
-            logo_lbl.grid(row=0, column=2, sticky="ne", padx=5, pady=5)
+            # -------- YENİ: CTkImage kullan --------
+        logo_paths = [
+            os.path.join("assets", "skyshield_logo.jpg"),
+            os.path.join("assets", "skyshield_logo.png"),
+            "skyshield_logo.jpg", 
+            "skyshield_logo.png"
+        ]
+        
+        logo_loaded = False
+        for logo_path in logo_paths:
+            if os.path.exists(logo_path):
+                try:
+                    # PIL Image'ı CTkImage'a çevir
+                    pil_image = Image.open(logo_path)
+                    self.small_logo_img = ctk.CTkImage(
+                        light_image=pil_image,
+                        dark_image=pil_image,
+                        size=(100, 100)
+                    )
+                    
+                    logo_lbl = ctk.CTkLabel(
+                        header_frame, 
+                        image=self.small_logo_img, 
+                        text=""
+                    )
+                    logo_lbl.grid(row=0, column=2, sticky="ne", padx=5, pady=5)
+                    
+                    logo_loaded = True
+                    print(f"[LOGO] Logo yüklendi: {logo_path}")
+                    break
+                    
+                except Exception as e:
+                    print(f"[LOGO] Logo yükleme hatası ({logo_path}): {e}")
+                    continue
+        
+        # Logo bulunamazsa emoji logo göster
+        if not logo_loaded:
+            emoji_logo = ctk.CTkLabel(
+                header_frame,
+                text="🛡️",
+                font=ctk.CTkFont(size=50),
+                text_color=self.theme_color
+            )
+            emoji_logo.grid(row=0, column=2, sticky="ne", padx=5, pady=5)
+            print("[LOGO] Dosya bulunamadı, emoji logo gösteriliyor")
 
+        # Orta kısım - Başlık
         middle = ctk.CTkFrame(header_frame, fg_color="transparent")
         middle.grid(row=0, column=1, sticky="n", pady=(5, 0))
 
@@ -1244,14 +1286,18 @@ class SkyShieldMainGUI:
         self.emergency_active = False
         self.emergency_countdown = 15
 
+        # -------- YENİ: AppController entegrasyonu --------
+        raspberry_ip = "localhost"  # Gerçek IP: "192.168.1.100" 
+        self.app_controller = AppController(raspberry_ip)
+        self._register_app_callbacks()
+
         self.setup_main_gui()
         self.setup_modules()
-        # Raspberry Pi kontrolcüsü
-        self.raspberry = RaspberryController()
-        self.raspberry.start_connection()
         
+        # AppController'ı başlat
+        self.app_controller.start()
+        print(f"[MAIN GUI] Raspberry Pi IP: {raspberry_ip}")
 
-        
     def center_window(self):
         """Ana GUI penceresini ekranın ortasına yerleştir"""
         # Pencere boyutları
@@ -1270,7 +1316,311 @@ class SkyShieldMainGUI:
         self.root.geometry(f"{window_width}x{window_height}+{center_x}+{center_y}")
         
         print(f"[MAIN GUI] Pencere ortalandı: {center_x}x{center_y}")
+
+    def _darker(self, hex_color, factor=0.85):
+        """Verilen hex rengin daha koyu tonunu döndürür"""
+        hex_color = hex_color.lstrip("#")
+        rgb = tuple(int(hex_color[i:i+2], 16) for i in (0, 2, 4))
+        darker_rgb = tuple(int(c * factor) for c in rgb)
+        return "#%02x%02x%02x" % darker_rgb
+
         
+    # -------- YENİ: AppController entegrasyonu --------
+        # Raspberry Pi IP'sini buradan ayarla
+        raspberry_ip = "localhost"  # Gerçek IP'yi buraya yaz: "192.168.1.100" 
+        
+        # AppController'ı oluştur
+        self.app_controller = AppController(raspberry_ip)
+        
+        # AppController callback'lerini kaydet
+        self._register_app_callbacks()
+
+        self.setup_main_gui()
+        self.setup_modules()
+        
+        # AppController'ı başlat
+        self.app_controller.start()
+        
+        print(f"[MAIN GUI] Raspberry Pi IP: {raspberry_ip}")
+        
+    def _register_app_callbacks(self):
+        """AppController callback'lerini kaydet"""
+        # Veri güncellendiğinde GUI'yi güncelle
+        self.app_controller.register_callback("data_updated", self._on_data_updated)
+        
+        # Log eklendiğinde
+        self.app_controller.register_callback("log_added", self._on_log_added)
+        
+        # Raspberry Pi bağlantı durumu değiştiğinde
+        self.app_controller.register_callback("raspberry_connection_changed", self._on_raspberry_connection_changed)
+        
+        # Hata oluştuğunda
+        self.app_controller.register_callback("raspberry_error", self._on_raspberry_error)
+
+    def _on_data_updated(self, data):
+        """Veri güncellendiğinde GUI modüllerini güncelle"""
+        try:
+            # Sol panel modüllerini güncelle
+            if hasattr(self, 'coords_module'):
+                if 'pan_angle' in data and 'tilt_angle' in data:
+                    self.coords_module.update_coordinates(
+                        distance=data.get('distance', '--'),
+                        pan=f"{data['pan_angle']:.1f}",
+                        tilt=f"{data['tilt_angle']:.1f}",
+                        speed=data.get('speed', '--')
+                    )
+            
+            # Sistem durumu güncelle
+            if hasattr(self, 'status_module'):
+                if data.get('target_locked'):
+                    self.status_module.update_status("Hedef Kilitli", "#00ff88")
+                    self.status_module.update_progress(1.0)
+                elif data.get('active'):
+                    self.status_module.update_status("Sistem Aktif", "#ffaa00")
+                    self.status_module.update_progress(0.5)
+                else:
+                    self.status_module.update_status("Sistem Hazır", "#cccccc")
+                    self.status_module.update_progress(0.0)
+            
+        except Exception as e:
+            print(f"[MAIN GUI] Veri güncelleme hatası: {e}")
+
+    def _on_log_added(self, log_entry):
+        """Log eklendiğinde"""
+        try:
+            if hasattr(self, 'log_module'):
+                # Log entry formatını parse et
+                # "[HH:MM:SS] [LEVEL] message"
+                parts = log_entry.split('] ', 2)
+                if len(parts) >= 3:
+                    message = parts[2]
+                    self.log_module.add_log(message)
+                else:
+                    self.log_module.add_log(log_entry)
+        except Exception as e:
+            print(f"[MAIN GUI] Log ekleme hatası: {e}")
+
+    def _on_raspberry_connection_changed(self, connection_data):
+        """Raspberry Pi bağlantı durumu değiştiğinde"""
+        try:
+            connected = connection_data.get('connected', False) if connection_data else False
+            details = connection_data.get('details', {}) if connection_data else {}
+            
+            # Status modülünü güncelle
+            if hasattr(self, 'status_module'):
+                if connected:
+                    self.status_module.update_status("Raspberry Pi Bağlı", "#00ff88")
+                else:
+                    self.status_module.update_status("Raspberry Pi Bağlantısı Yok", "#ff6666")
+            
+            # Log ekle
+            status = "bağlandı" if connected else "bağlantı kesildi"
+            if hasattr(self, 'log_module'):
+                self.log_module.add_log(f"Raspberry Pi {status}")
+                
+        except Exception as e:
+            print(f"[MAIN GUI] Bağlantı durumu güncelleme hatası: {e}")
+
+    def _on_raspberry_error(self, error_message):
+        """Raspberry Pi hata oluştuğunda"""
+        try:
+            if hasattr(self, 'log_module'):
+                self.log_module.add_log(f"HATA: {error_message}")
+            
+            if hasattr(self, 'status_module'):
+                self.status_module.update_status("Raspberry Pi Hatası", "#ff0000")
+                
+        except Exception as e:
+            print(f"[MAIN GUI] Hata işleme hatası: {e}")
+
+    """
+    3. SETUP_MODULES METHOD'UNU GÜNCELLE:
+    """
+
+    def setup_modules(self):
+        # Sol panel - Durum ve bilgiler (Askeri tema)
+        left_frame = ctk.CTkFrame(self.content_frame, width=280, fg_color="#1a1a1a")
+        left_frame.pack(side="left", fill="y", padx=5)
+        left_frame.pack_propagate(False)
+        
+        # Sistem durumu modülü
+        self.status_module = SystemStatusModule(left_frame)
+        self.status_module.pack(fill="x", padx=10, pady=10)
+        
+        # Hedef bilgileri modülü
+        self.target_module = TargetInfoModule(left_frame, self.phase)
+        self.target_module.pack(fill="x", padx=10, pady=5)
+        
+        # Koordinatlar modülü
+        self.coords_module = CoordinatesModule(left_frame)
+        self.coords_module.pack(fill="x", padx=10, pady=5)
+        
+        # Mühimmat modülü
+        self.weapon_module = WeaponModule(left_frame)
+        self.weapon_module.pack(fill="x", padx=10, pady=5)
+        
+        # -------- YENİ: Orta panel - Gerçek Kamera Modülü --------
+        center_frame = ctk.CTkFrame(self.content_frame, fg_color="#000000")
+        center_frame.pack(side="left", fill="both", expand=True, padx=5)
+        
+        # ESKİ CameraModule yerine UpdatedCameraModule kullan
+        self.camera_module = UpdatedCameraModule(center_frame, self.app_controller, self.phase)
+        
+        # Sağ panel - Kontroller ve log (Askeri tema)
+        right_frame = ctk.CTkFrame(self.content_frame, width=250, fg_color="#1a1a1a")
+        right_frame.pack(side="right", fill="y", padx=5)
+        right_frame.pack_propagate(False)
+        
+        # Kontroller
+        self.control_module = ControlModule(right_frame, self.phase)
+        self.control_module.pack(fill="x", padx=10, pady=5)
+        
+        # Log
+        self.log_module = LogModule(right_frame)
+        self.log_module.pack(fill="both", expand=True, padx=10, pady=5)
+
+    """
+    4. SYSTEM CONTROL METHOD'LARINI GÜNCELLE:
+    """
+
+    def start_system(self):
+        """Sistem başlat - AppController ile"""
+        # AppController'a komut gönder
+        self.app_controller.send_command("start_system")
+        self.app_controller.send_command("change_mode", self.phase)
+        
+        # UI güncellemeleri callback'ler ile gelecek
+        if hasattr(self, 'log_module'):
+            self.log_module.add_log(f"Sistem başlatıldı - Aşama {self.phase}")
+
+    def stop_system(self):
+        """Sistem durdur - AppController ile"""
+        # AppController'a komut gönder
+        self.app_controller.send_command("stop_system")
+        
+        # UI güncellemeleri callback'ler ile gelecek
+        if hasattr(self, 'log_module'):
+            self.log_module.add_log("Sistem durduruldu")
+
+    def emergency_stop(self):
+        """Acil durdur - AppController ile"""
+        # Acil durdur butonu titreme efekti
+        self.emergency_button.configure(fg_color="#ff0000", text="🚨 ACTİVE! 🚨")
+        
+        # AppController'a acil durdur komutu gönder
+        self.app_controller.send_command("emergency_stop")
+        
+        # TÜM SİSTEMLERİ DURDUR
+        self._stop_all_systems()
+        
+        # Uyarı popup'ı oluştur
+        self.create_emergency_popup()
+        
+        # 15 saniye geri sayım başlat
+        self.start_emergency_countdown()
+
+    """
+    5. _STOP_ALL_SYSTEMS METHOD'UNU GÜNCELLE:
+    """
+
+    def _stop_all_systems(self):
+        """Acil durdurma - Tüm sistemleri durdur"""
+        try:
+            # Kamera modülünü durdur
+            if hasattr(self, 'camera_module'):
+                self.camera_module.stop_camera()
+            
+            # AppController'a acil durdur gönder
+            self.app_controller.send_command("emergency_stop")
+            
+            # Log ekle
+            if hasattr(self, 'log_module'):
+                self.log_module.add_log("🛑 ACİL DURDUR - Tüm sistemler durduruldu")
+            
+        except Exception as e:
+            print(f"[EMERGENCY] Sistem durdurma hatası: {e}")
+
+    """
+    6. _RESTART_ALL_SYSTEMS METHOD'UNU GÜNCELLE:
+    """
+
+    def _restart_all_systems(self):
+        """Acil durumdan sonra sistemleri yeniden başlat"""
+        try:
+            # Kamera modülünü yeniden başlat
+            if hasattr(self, 'camera_module'):
+                self.camera_module.restart_camera()
+            
+            # AppController'a sistem başlat komutu gönder (ancak acil durdur iptal et)
+            # Emergency stop flag'ini sıfırla
+            
+            # Log ekle
+            if hasattr(self, 'log_module'):
+                self.log_module.add_log("🟢 Sistemler yeniden başlatıldı")
+            
+        except Exception as e:
+            print(f"[RESTART] Sistem yeniden başlatma hatası: {e}")
+
+    """
+    7. CLASS DESTRUCTOR EKLE:
+    """
+
+    def __del__(self):
+        """GUI kapatılırken temizlik"""
+        try:
+            if hasattr(self, 'app_controller'):
+                self.app_controller.stop()
+        except:
+            pass
+
+    def _return_to_menu(self):
+        """Ana menüye dön"""
+        # AppController'ı durdur
+        if hasattr(self, 'app_controller'):
+            self.app_controller.stop()
+        
+        self.root.destroy()
+        # Ana menüyü yeniden başlat
+        main()
+
+    """
+    8. RASPBERRY PI IP AYARI İÇİN YENİ METHOD EKLE:
+    """
+
+    def set_raspberry_ip(self, ip_address: str):
+        """Raspberry Pi IP adresini değiştir"""
+        try:
+            if hasattr(self, 'app_controller'):
+                self.app_controller.set_raspberry_ip(ip_address)
+                
+                if hasattr(self, 'log_module'):
+                    self.log_module.add_log(f"Raspberry Pi IP: {ip_address}")
+            
+        except Exception as e:
+            print(f"[IP CHANGE] IP değiştirme hatası: {e}")
+            if hasattr(self, 'log_module'):
+                self.log_module.add_log(f"IP değiştirme hatası: {e}")    
+
+            
+        def center_window(self):
+            """Ana GUI penceresini ekranın ortasına yerleştir"""
+            # Pencere boyutları
+            window_width = 1400
+            window_height = 900
+            
+            # Ekran boyutlarını al
+            screen_width = self.root.winfo_screenwidth()
+            screen_height = self.root.winfo_screenheight()
+            
+            # Orta pozisyonu hesapla
+            center_x = int(screen_width/2 - window_width/2)
+            center_y = int(screen_height/2 - window_height/2)
+            
+            # Pencereyi ortala
+            self.root.geometry(f"{window_width}x{window_height}+{center_x}+{center_y}")
+            
+            print(f"[MAIN GUI] Pencere ortalandı: {center_x}x{center_y}")
+            
     def setup_main_gui(self):
         # Ana çerçeve
         self.main_frame = ctk.CTkFrame(self.root)
@@ -1336,8 +1686,7 @@ class SkyShieldMainGUI:
         center_frame = ctk.CTkFrame(self.content_frame, fg_color="#000000")
         center_frame.pack(side="left", fill="both", expand=True, padx=5)
         
-        self.camera_module = CameraModule(center_frame, self.phase)
-        self.camera_module.pack(fill="both", expand=True, padx=5, pady=5)
+        self.camera_module = UpdatedCameraModule(center_frame, self.app_controller, self.phase)  
         
         # Sağ panel - Kontroller ve log (Askeri tema)
         right_frame = ctk.CTkFrame(self.content_frame, width=250, fg_color="#1a1a1a")
@@ -1401,24 +1750,19 @@ class SkyShieldMainGUI:
         self.emergency_button.pack(padx=10, pady=10)
         
     def start_system(self):
-            # İLK DEFA sistem modunu gönder
-        self.raspberry.update_system_mode(self.phase)
+        """Sistem başlat - AppController ile"""
+        # AppController'a komut gönder
+        self.app_controller.send_command("start_system")
+        self.app_controller.send_command("change_mode", self.phase)
         
-        # Sistem aktif durumunu gönder
-        self.raspberry.update_system_active(True)
-        
-        # Aşamaya göre özel komut
-        if self.phase > 0:
-            self.raspberry.send_phase_command(self.phase)
-    
-   
-        self.status_module.update_status("Sistem Aktif", "#00ff88")
-        self.log_module.add_log("Sistem başlatıldı")
-        
+        # UI güncellemeleri callback'ler ile gelecek
+        if hasattr(self, 'log_module'):
+            self.log_module.add_log(f"Sistem başlatıldı - Aşama {self.phase}")
+            
     def stop_system(self):
-        self.raspberry.update_system_active(False)
-        self.status_module.update_status("Sistem Durduruldu", "#ff6666")
-        self.log_module.add_log("Sistem durduruldu")
+         self.app_controller.send_command("stop_system")
+         if hasattr(self, 'log_module'):
+            self.log_module.add_log("Sistem durduruldu")
         
     def emergency_stop(self):
         # Acil durdur butonu titreme efekti
