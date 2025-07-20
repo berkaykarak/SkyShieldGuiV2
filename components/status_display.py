@@ -662,12 +662,7 @@ class StatusDisplay(BaseGUIComponent):
             self.fps_label.configure(text=f"FPS: {data['fps']:.1f}")
     
     def update_connection_status(self, connected: bool) -> None:
-        """
-    Bağlantı durumunu güncelle
-    
-    Args:
-        status_dict: RaspberryConnectionManager'dan bağlantı durumu sözlüğü
-    """
+        """Bağlantı durumunu güncelle"""
         if self.connection_status:
             if connected:
                 self.connection_status.configure(
@@ -678,39 +673,7 @@ class StatusDisplay(BaseGUIComponent):
                 self.connection_status.configure(
                     text="🔗 PUC Process: Bağlantı Yok",
                     text_color=("red", "red")
-        
                 )
-    def update_raspberry_connection(self, status_dict: Dict[str, bool]) -> None:
-        """
-        Raspberry Pi bağlantı durumunu güncelle
-        
-        Args:
-            status_dict: RaspberryConnectionManager'dan bağlantı durumu sözlüğü
-        """
-        if self.connection_status:
-            websocket = status_dict.get("websocket_connected", False)
-            stream = status_dict.get("stream_connected", False)
-            
-            if websocket and stream:
-                self.connection_status.configure(
-                    text="🔗 Raspberry Pi: Tam Bağlantı",
-                    text_color=("green", "green")
-                )
-            elif websocket:
-                self.connection_status.configure(
-                    text="🔗 Raspberry Pi: Sadece Veri",
-                    text_color=("#ffa500", "#ffa500")  # Turuncu
-                )
-            elif stream:
-                self.connection_status.configure(
-                    text="🔗 Raspberry Pi: Sadece Video",
-                    text_color=("#ffa500", "#ffa500")  # Turuncu
-                )
-            else:
-                self.connection_status.configure(
-                    text="🔗 Raspberry Pi: Bağlantı Yok",
-                    text_color=("red", "red")
-                )             
     
     def get_data(self) -> Dict[str, Any]:
         """Durum ekranı verilerini döndür"""

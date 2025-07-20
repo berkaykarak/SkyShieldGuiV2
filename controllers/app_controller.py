@@ -6,9 +6,6 @@ from datetime import datetime, timedelta
 from typing import Dict, Any, Callable, Optional, List
 from dataclasses import dataclass
 from enum import Enum
-from processors.raspberry_connection_manager import RaspberryConnectionManager
-import logging
-
 
 class SystemMode(Enum):
     """Sistem modları"""
@@ -101,9 +98,6 @@ class AppController:
             'errors': 0,
             'uptime': timedelta(0)
         }
-           
-        # Raspberry Pi bağlantısı
-        self.raspberry_connection = None
     
     def start(self) -> None:
         """Kontrolcüyü başlat"""
