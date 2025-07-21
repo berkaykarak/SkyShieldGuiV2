@@ -1,14 +1,24 @@
 # gui/communication/communication_manager.py
+<<<<<<< HEAD
 from typing import Dict, Any, Callable, Optional
 import time
 import threading
 from datetime import datetime, timedelta
 
 from .websocket_client import WebSocketCommunicationClient
+=======
+from typing import Dict, Any, Optional, Callable
+import time
+import threading
+from datetime import datetime
+
+from .http_client import HTTPCommunicationClient
+>>>>>>> ded40ed0e889086f110062dd1e45d9710e4db104
 from .camera_stream_client import CameraStreamClient
 
 class CommunicationManager:
     """
+<<<<<<< HEAD
     Pure WebSocket + MJPEG Stream iletişim yöneticisi
     HTTP client kaldırıldı, sadece WebSocket kullanılıyor
     """
@@ -21,11 +31,27 @@ class CommunicationManager:
         self.ws_client = WebSocketCommunicationClient(raspberry_ip, ws_port)
         
         # Camera Stream Client
+=======
+    HTTP Client ve Camera Stream Client'ı yöneten ana koordinatör
+    GUI ile Raspberry Pi arasındaki tüm iletişimi organize eder
+    """
+    
+    def __init__(self, raspberry_ip: str = "localhost", 
+                 command_port: int = 8000, 
+                 stream_port: int = 9001):
+        
+        # Client'ları oluştur
+        self.http_client = HTTPCommunicationClient(raspberry_ip, command_port, stream_port)
+>>>>>>> ded40ed0e889086f110062dd1e45d9710e4db104
         self.camera_client = CameraStreamClient(raspberry_ip, stream_port)
         
         # Durum takibi
         self.connected = False
+<<<<<<< HEAD
         self.ws_connected = False
+=======
+        self.data_connected = False
+>>>>>>> ded40ed0e889086f110062dd1e45d9710e4db104
         self.camera_connected = False
         
         # Son alınan veri
@@ -51,6 +77,7 @@ class CommunicationManager:
         
         self._setup_client_callbacks()
         
+<<<<<<< HEAD
         print(f"[COMM MANAGER] Pure WebSocket ile oluşturuldu: {raspberry_ip}")
     
     def _setup_client_callbacks(self):
@@ -59,6 +86,16 @@ class CommunicationManager:
         self.ws_client.register_data_callback(self._on_ws_data_received)
         self.ws_client.register_connection_callback(self._on_ws_connection_changed)
         self.ws_client.register_error_callback(self._on_error)
+=======
+        print(f"[COMM MANAGER] Oluşturuldu: {raspberry_ip}:{command_port}")
+    
+    def _setup_client_callbacks(self):
+        """Client callback'lerini kur"""
+        # HTTP Client callbacks
+        self.http_client.register_data_callback(self._on_data_received)
+        self.http_client.register_connection_callback(self._on_data_connection_changed)
+        self.http_client.register_error_callback(self._on_error)
+>>>>>>> ded40ed0e889086f110062dd1e45d9710e4db104
         
         # Camera Client callbacks
         self.camera_client.register_frame_callback(self._on_frame_received)
@@ -70,8 +107,13 @@ class CommunicationManager:
         print("[COMM MANAGER] İletişim başlatılıyor...")
         self.stats['connection_attempts'] += 1
         
+<<<<<<< HEAD
         # WebSocket bağlantısını başlat
         ws_success = self.ws_client.start_connection()
+=======
+        # HTTP bağlantısını başlat
+        data_success = self.http_client.start_connection()
+>>>>>>> ded40ed0e889086f110062dd1e45d9710e4db104
         
         # Kamera stream'ini başlat
         camera_success = self.camera_client.start_stream()
@@ -79,6 +121,7 @@ class CommunicationManager:
         # Genel bağlantı durumunu güncelle
         self._update_overall_connection_status()
         
+<<<<<<< HEAD
         success = ws_success or camera_success
         
         if success:
@@ -87,6 +130,12 @@ class CommunicationManager:
                 print("[COMM MANAGER]   - WebSocket: Aktif")
             if camera_success:
                 print("[COMM MANAGER]   - MJPEG Stream: Aktif")
+=======
+        success = data_success or camera_success  # En az biri başarılı olmalı
+        
+        if success:
+            print("[COMM MANAGER] ✅ İletişim başlatıldı")
+>>>>>>> ded40ed0e889086f110062dd1e45d9710e4db104
         else:
             print("[COMM MANAGER] ❌ İletişim başlatılamadı")
         
@@ -97,12 +146,20 @@ class CommunicationManager:
         print("[COMM MANAGER] İletişim durduruluyor...")
         
         # Client'ları durdur
+<<<<<<< HEAD
         self.ws_client.stop_connection()
+=======
+        self.http_client.stop_connection()
+>>>>>>> ded40ed0e889086f110062dd1e45d9710e4db104
         self.camera_client.stop_stream()
         
         # Durumu güncelle
         self.connected = False
+<<<<<<< HEAD
         self.ws_connected = False
+=======
+        self.data_connected = False
+>>>>>>> ded40ed0e889086f110062dd1e45d9710e4db104
         self.camera_connected = False
         
         if self.connection_callback:
@@ -111,12 +168,21 @@ class CommunicationManager:
         print("[COMM MANAGER] İletişim durduruldu")
     
     def send_command(self, command_data: Dict[str, Any]) -> bool:
+<<<<<<< HEAD
         """Raspberry Pi'ye WebSocket ile komut gönder"""
         if not self.ws_connected:
             print("[COMM MANAGER] ⚠️ WebSocket bağlantısı yok, komut gönderilemiyor")
             return False
         
         success = self.ws_client.send_command(command_data)
+=======
+        """Raspberry Pi'ye komut gönder"""
+        if not self.data_connected:
+            print("[COMM MANAGER] ⚠️ HTTP bağlantısı yok, komut gönderilemiyor")
+            return False
+        
+        success = self.http_client.send_command(command_data)
+>>>>>>> ded40ed0e889086f110062dd1e45d9710e4db104
         
         if success:
             self.stats['commands_sent'] += 1
@@ -132,6 +198,7 @@ class CommunicationManager:
         """Mevcut frame'i kaydet"""
         return self.camera_client.save_current_frame(filename)
     
+<<<<<<< HEAD
     def _on_ws_data_received(self, data: Dict[str, Any]):
         """WebSocket'tan veri alındığında"""
         try:
@@ -167,6 +234,33 @@ class CommunicationManager:
         self.ws_connected = connected
         self._update_overall_connection_status()
         print(f"[COMM MANAGER] WebSocket: {'Aktif' if connected else 'Kesildi'}")
+=======
+    def _on_data_received(self, data: Dict[str, Any]):
+        """HTTP client'tan veri alındığında"""
+        self.last_system_data = data
+        self.stats['data_received'] += 1
+        self.stats['last_data_time'] = datetime.now()
+        
+        # Veri callback'ini tetikle
+        if self.data_callback:
+            self.data_callback(data)
+    
+    def _on_frame_received(self, frame):
+        """Camera client'tan frame alındığında"""
+        self.last_frame = frame
+        self.stats['frames_received'] += 1
+        self.stats['last_frame_time'] = datetime.now()
+        
+        # Frame callback'ini tetikle
+        if self.frame_callback:
+            self.frame_callback(frame)
+    
+    def _on_data_connection_changed(self, connected: bool):
+        """HTTP bağlantı durumu değiştiğinde"""
+        self.data_connected = connected
+        self._update_overall_connection_status()
+        print(f"[COMM MANAGER] HTTP bağlantısı: {'Aktif' if connected else 'Kesildi'}")
+>>>>>>> ded40ed0e889086f110062dd1e45d9710e4db104
     
     def _on_camera_connection_changed(self, connected: bool):
         """Kamera bağlantı durumu değiştiğinde"""
@@ -177,7 +271,11 @@ class CommunicationManager:
     def _update_overall_connection_status(self):
         """Genel bağlantı durumunu güncelle"""
         old_status = self.connected
+<<<<<<< HEAD
         self.connected = self.ws_connected or self.camera_connected
+=======
+        self.connected = self.data_connected or self.camera_connected
+>>>>>>> ded40ed0e889086f110062dd1e45d9710e4db104
         
         # Durum değişti mi?
         if old_status != self.connected:
@@ -188,10 +286,17 @@ class CommunicationManager:
         """Detaylı bağlantı bilgisi"""
         return {
             'overall_connected': self.connected,
+<<<<<<< HEAD
             'ws_connected': self.ws_connected,
             'camera_connected': self.camera_connected,
             'raspberry_ip': self.ws_client.raspberry_ip,
             'ws_port': self.ws_client.ws_port,
+=======
+            'data_connected': self.data_connected,
+            'camera_connected': self.camera_connected,
+            'raspberry_ip': self.http_client.raspberry_ip,
+            'command_port': self.http_client.command_port,
+>>>>>>> ded40ed0e889086f110062dd1e45d9710e4db104
             'stream_port': self.camera_client.stream_port
         }
     
@@ -222,14 +327,24 @@ class CommunicationManager:
         return {
             'communication': {
                 'connected': self.connected,
+<<<<<<< HEAD
                 'ws_connected': self.ws_connected,
                 'camera_connected': self.camera_connected,
                 'raspberry_ip': self.ws_client.raspberry_ip
+=======
+                'data_connected': self.data_connected,
+                'camera_connected': self.camera_connected,
+                'raspberry_ip': self.http_client.raspberry_ip
+>>>>>>> ded40ed0e889086f110062dd1e45d9710e4db104
             },
             'stats': self.stats.copy(),
             'last_data': self.last_system_data.copy() if self.last_system_data else {},
             'camera_info': self.camera_client.get_stream_info(),
+<<<<<<< HEAD
             'ws_info': self.ws_client.get_connection_status()
+=======
+            'http_info': self.http_client.get_connection_status()
+>>>>>>> ded40ed0e889086f110062dd1e45d9710e4db104
         }
     
     # Kolay kullanım için kısayol fonksiyonlar
@@ -238,6 +353,7 @@ class CommunicationManager:
         return self.send_command({"system_mode": mode})
     
     def send_system_active(self, active: bool) -> bool:
+<<<<<<< HEAD
         """Sistem aktif durumu gönder - mode ile kontrol"""
         mode = 1 if active else -1  # -1 = durdur, 1+ = aktif
         return self.send_command({"system_mode": mode})
@@ -245,6 +361,19 @@ class CommunicationManager:
     def send_emergency_stop(self) -> bool:
         """Acil durdur komutu gönder"""
         return self.send_command({"system_mode": -1})
+=======
+        """Sistem aktif durumu gönder"""
+        return self.send_command({"system_active": active})
+    
+    def send_emergency_stop(self) -> bool:
+        """Acil durdur komutu gönder"""
+        return self.send_command({
+            "emergency_stop": True,
+            "system_active": False,
+            "fire_gui_flag": False,
+            "engagement_started_flag": False
+        })
+>>>>>>> ded40ed0e889086f110062dd1e45d9710e4db104
     
     def send_fire_command(self) -> bool:
         """Ateş komutu gönder"""
@@ -256,6 +385,16 @@ class CommunicationManager:
     def send_calibration_command(self) -> bool:
         """Kalibrasyon komutu gönder"""
         return self.send_command({"calibration_flag": True})
+<<<<<<< HEAD
+=======
+    
+    def send_target_position(self, x: float, y: float) -> bool:
+        """Hedef pozisyonu gönder"""
+        return self.send_command({
+            "target_x": x,
+            "target_y": y
+        })
+>>>>>>> ded40ed0e889086f110062dd1e45d9710e4db104
 
 # Test fonksiyonu
 if __name__ == "__main__":
@@ -272,7 +411,11 @@ if __name__ == "__main__":
     def on_error(error):
         print(f"❌ Hata: {error}")
     
+<<<<<<< HEAD
     print("🧪 Pure WebSocket Communication Manager Test")
+=======
+    print("🧪 Communication Manager Test")
+>>>>>>> ded40ed0e889086f110062dd1e45d9710e4db104
     
     # Manager oluştur
     comm = CommunicationManager()
@@ -291,6 +434,10 @@ if __name__ == "__main__":
         test_commands = [
             ("Sistem Modu 1", lambda: comm.send_system_mode(1)),
             ("Sistem Aktif", lambda: comm.send_system_active(True)),
+<<<<<<< HEAD
+=======
+            ("Hedef Pozisyon", lambda: comm.send_target_position(150.5, 200.3)),
+>>>>>>> ded40ed0e889086f110062dd1e45d9710e4db104
             ("Ateş Komutu", lambda: comm.send_fire_command()),
             ("Kalibrasyon", lambda: comm.send_calibration_command()),
             ("Acil Durdur", lambda: comm.send_emergency_stop())
@@ -305,10 +452,14 @@ if __name__ == "__main__":
         # Durum bilgisini göster
         print("\n📊 Sistem Durumu:")
         status = comm.get_system_status()
+<<<<<<< HEAD
         ws_connected = status['communication']['ws_connected']
         camera_connected = status['communication']['camera_connected']
         print(f"   WebSocket: {'✅' if ws_connected else '❌'}")
         print(f"   Kamera: {'✅' if camera_connected else '❌'}")
+=======
+        print(f"   Bağlantı: {status['communication']['connected']}")
+>>>>>>> ded40ed0e889086f110062dd1e45d9710e4db104
         print(f"   Gönderilen komut: {status['stats']['commands_sent']}")
         print(f"   Alınan veri: {status['stats']['data_received']}")
         print(f"   Alınan frame: {status['stats']['frames_received']}")

@@ -212,13 +212,18 @@ class AppController:
             return False
     
     def _convert_command_to_raspberry_format(self, command: str, data: Any) -> Optional[Dict[str, Any]]:
+<<<<<<< HEAD
         """GUI komutunu Raspberry WebSocket formatına çevir"""
+=======
+        """GUI komutunu Raspberry formatına çevir"""
+>>>>>>> ded40ed0e889086f110062dd1e45d9710e4db104
         raspberry_data = {}
         
         if command == "change_mode":
             raspberry_data = {"system_mode": data}
             
         elif command == "start_system":
+<<<<<<< HEAD
             raspberry_data = {"system_mode": 1}  # 1 = aktif başlangıç modu
             
         elif command == "stop_system":
@@ -226,6 +231,20 @@ class AppController:
             
         elif command == "emergency_stop":
             raspberry_data = {"system_mode": -1}  # WebSocket'te sadece -1 gönder
+=======
+            raspberry_data = {"system_active": True}
+            
+        elif command == "stop_system":
+            raspberry_data = {"system_active": False}
+            
+        elif command == "emergency_stop":
+            raspberry_data = {
+                "emergency_stop": True,
+                "system_active": False,
+                "fire_gui_flag": False,
+                "engagement_started_flag": False
+            }
+>>>>>>> ded40ed0e889086f110062dd1e45d9710e4db104
             
         elif command == "fire_weapon":
             raspberry_data = {
@@ -235,6 +254,7 @@ class AppController:
             
         elif command == "start_scan":
             raspberry_data = {
+<<<<<<< HEAD
                 "scanning_target_flag": True
             }
             
@@ -252,6 +272,19 @@ class AppController:
                 "None": "E"
             }
             raspberry_data = {"weapon": weapon_map.get(weapon_value, "E")}
+=======
+                "scanning_target_flag": True,
+                "system_active": True
+            }
+            
+        elif command == "select_weapon":
+            weapon_map = {
+                WeaponType.LASER: "L",
+                WeaponType.AIRGUN: "A", 
+                WeaponType.AUTO: "Auto"
+            }
+            raspberry_data = {"weapon": weapon_map.get(data, "E")}
+>>>>>>> ded40ed0e889086f110062dd1e45d9710e4db104
             
         elif command == "calibrate_joystick":
             raspberry_data = {"calibration_flag": True}
@@ -259,11 +292,20 @@ class AppController:
         elif command == "update_target_position":
             if isinstance(data, dict) and 'x' in data and 'y' in data:
                 raspberry_data = {
+<<<<<<< HEAD
                     "x_target": int(data['x']),
                     "y_target": int(data['y'])
                 }
         
         return raspberry_data if raspberry_data else None
+=======
+                    "x_target": data['x'],
+                    "y_target": data['y']
+                }
+        
+        return raspberry_data if raspberry_data else None
+    
+>>>>>>> ded40ed0e889086f110062dd1e45d9710e4db104
     def _process_command(self, command: str, data: Any) -> None:
         """Komutları local olarak işle"""
         try:
@@ -356,6 +398,7 @@ class AppController:
         self.trigger_event("raspberry_error", error_message)
     
     def _convert_raspberry_data_to_gui_format(self, raspberry_data: Dict[str, Any]) -> Dict[str, Any]:
+<<<<<<< HEAD
         """WebSocket'tan gelen Raspberry formatını GUI formatına çevir"""
         gui_data = {}
         
@@ -373,17 +416,28 @@ class AppController:
         # Hedef bilgileri
         if 'target_detected_flag' in raspberry_data:
             gui_data['target_locked'] = raspberry_data['target_detected_flag']
+=======
+        """Raspberry formatını GUI formatına çevir"""
+        gui_data = {}
+        
+        # Hedef pozisyonu
+>>>>>>> ded40ed0e889086f110062dd1e45d9710e4db104
         if 'x_target' in raspberry_data:
             gui_data['target_x'] = float(raspberry_data['x_target'])
         if 'y_target' in raspberry_data:
             gui_data['target_y'] = float(raspberry_data['y_target'])
         
+<<<<<<< HEAD
         # Açı bilgileri
+=======
+        # Motor açıları
+>>>>>>> ded40ed0e889086f110062dd1e45d9710e4db104
         if 'global_angle' in raspberry_data:
             gui_data['pan_angle'] = float(raspberry_data['global_angle'])
         if 'global_tilt_angle' in raspberry_data:
             gui_data['tilt_angle'] = float(raspberry_data['global_tilt_angle'])
         
+<<<<<<< HEAD
         # Mühimmat
         if 'weapon' in raspberry_data:
             weapon_map = {'L': 'Laser', 'A': 'Airgun', 'E': 'None'}
@@ -408,6 +462,29 @@ class AppController:
             gui_data['speed'] = 0.0  # WebSocket'tan gelmediği için 0
         
         return gui_data
+=======
+        # Sistem durumu
+        if 'system_mode' in raspberry_data:
+            gui_data['mode'] = int(raspberry_data['system_mode'])
+        if 'target_destroyed_flag' in raspberry_data:
+            gui_data['target_destroyed'] = bool(raspberry_data['target_destroyed_flag'])
+        if 'scanning_target_flag' in raspberry_data:
+            gui_data['scanning'] = bool(raspberry_data['scanning_target_flag'])
+        if 'target_detected_flag' in raspberry_data:
+            gui_data['target_locked'] = bool(raspberry_data['target_detected_flag'])
+        
+        # Mühimmat
+        if 'weapon' in raspberry_data:
+            weapon_map = {
+                'L': 'Laser',
+                'A': 'Airgun',
+                'E': 'None'
+            }
+            gui_data['weapon'] = weapon_map.get(raspberry_data['weapon'], 'Auto')
+        
+        return gui_data
+    
+>>>>>>> ded40ed0e889086f110062dd1e45d9710e4db104
     def register_callback(self, event: str, callback: Callable) -> None:
         """Olay dinleyicisi kaydet"""
         if event not in self.callbacks:
