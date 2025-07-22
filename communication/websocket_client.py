@@ -13,7 +13,7 @@ class WebSocketCommunicationClient:
     Threading ve connection timeout sorunları düzeltildi
     """
     
-    def __init__(self, raspberry_ip: str = "192.168.0.22", ws_port: int = 9000):
+    def __init__(self, raspberry_ip: str = "localhost", ws_port: int = 9000):
         self.raspberry_ip = raspberry_ip
         self.ws_port = ws_port
         self.ws_url = f"ws://{raspberry_ip}:{ws_port}"

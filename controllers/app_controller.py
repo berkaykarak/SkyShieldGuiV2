@@ -133,7 +133,7 @@ class AppController:
             
             # Communication Manager'ı başlat
             raspberry_connected = self.comm_manager.start_communication()
-            self.state.raspberry_connected = raspberry_connected
+            self.state.raspberry_connected = True
             
             # Update thread'ini başlat
             self.update_thread = threading.Thread(target=self._update_loop, daemon=True)
@@ -170,10 +170,9 @@ class AppController:
         command_data = {
             'command': command,
             'data': data,
-            'timestamp': datetime.now(),
-            'id': self.stats['commands_sent']
         }
-        
+        print(f"[APP CTRL] 🔁 send_command çağrıldı: {command}, data: {data}")
+
         # Legacy queue'ya ekle
         self.command_queue.put(command_data)
         
@@ -198,142 +197,57 @@ class AppController:
         if not self.state.raspberry_connected:
             return False
         
+        print(f"[SEND DEBUG] Komut: {command}, Veri: {data}")
+
         try:
+            print(f"[SEND DEBUG] Komut: {command}, Veri: {data}")
             # Komuta göre uygun Raspberry format oluştur
             raspberry_data = self._convert_command_to_raspberry_format(command, data)
+            
+            print(f"[SEND DEBUG] Raspberry Formatı: {raspberry_data}")
+
+
             
             if raspberry_data:
                 return self.comm_manager.send_command(raspberry_data)
             
             return False
             
+
+            
         except Exception as e:
             self.add_log(f"Raspberry komut gönderme hatası: {e}", "ERROR")
             return False
     
-    def _convert_command_to_raspberry_format(self, command: str, data: Any) -> Optional[Dict[str, Any]]:
-<<<<<<< HEAD
-        """GUI komutunu Raspberry WebSocket formatına çevir"""
-=======
-        """GUI komutunu Raspberry formatına çevir"""
->>>>>>> ded40ed0e889086f110062dd1e45d9710e4db104
-        raspberry_data = {}
-        
-        if command == "change_mode":
-            raspberry_data = {"system_mode": data}
-            
-        elif command == "start_system":
-<<<<<<< HEAD
-            raspberry_data = {"system_mode": 1}  # 1 = aktif başlangıç modu
-            
-        elif command == "stop_system":
-            raspberry_data = {"system_mode": -1}  # -1 = durdur
-            
-        elif command == "emergency_stop":
-            raspberry_data = {"system_mode": -1}  # WebSocket'te sadece -1 gönder
-=======
-            raspberry_data = {"system_active": True}
-            
-        elif command == "stop_system":
-            raspberry_data = {"system_active": False}
-            
-        elif command == "emergency_stop":
-            raspberry_data = {
-                "emergency_stop": True,
-                "system_active": False,
-                "fire_gui_flag": False,
-                "engagement_started_flag": False
-            }
->>>>>>> ded40ed0e889086f110062dd1e45d9710e4db104
-            
-        elif command == "fire_weapon":
-            raspberry_data = {
-                "fire_gui_flag": True,
-                "engagement_started_flag": True
-            }
-            
-        elif command == "start_scan":
-            raspberry_data = {
-<<<<<<< HEAD
-                "scanning_target_flag": True
-            }
-            
-        elif command == "select_weapon":
-            # WeaponType enum'dan string'e çevir
-            if hasattr(data, 'value'):
-                weapon_value = data.value
-            else:
-                weapon_value = str(data)
-                
-            weapon_map = {
-                "Laser": "L",
-                "Airgun": "A", 
-                "Auto": "E",
-                "None": "E"
-            }
-            raspberry_data = {"weapon": weapon_map.get(weapon_value, "E")}
-=======
-                "scanning_target_flag": True,
-                "system_active": True
-            }
-            
-        elif command == "select_weapon":
-            weapon_map = {
-                WeaponType.LASER: "L",
-                WeaponType.AIRGUN: "A", 
-                WeaponType.AUTO: "Auto"
-            }
-            raspberry_data = {"weapon": weapon_map.get(data, "E")}
->>>>>>> ded40ed0e889086f110062dd1e45d9710e4db104
-            
-        elif command == "calibrate_joystick":
-            raspberry_data = {"calibration_flag": True}
-            
-        elif command == "update_target_position":
-            if isinstance(data, dict) and 'x' in data and 'y' in data:
-                raspberry_data = {
-<<<<<<< HEAD
-                    "x_target": int(data['x']),
-                    "y_target": int(data['y'])
-                }
-        
-        return raspberry_data if raspberry_data else None
-=======
-                    "x_target": data['x'],
-                    "y_target": data['y']
-                }
-        
-        return raspberry_data if raspberry_data else None
-    
->>>>>>> ded40ed0e889086f110062dd1e45d9710e4db104
+
     def _process_command(self, command: str, data: Any) -> None:
         """Komutları local olarak işle"""
         try:
             if command == "change_mode":
                 self.state.mode = SystemMode(data)
                 self.trigger_event("mode_changed", self.state.mode)
-                
+
             elif command == "start_system":
                 self.state.active = True
                 self.trigger_event("system_started")
-                
+
             elif command == "stop_system":
                 self.state.active = False
                 self.trigger_event("system_stopped")
-                
+
             elif command == "emergency_stop":
                 self.state.emergency_stop = True
                 self.state.active = False
                 self.trigger_event("emergency_stop")
-                
+
             elif command == "fire_weapon":
                 if self.state.target.locked and self.state.weapon_ready:
                     self.trigger_event("weapon_fired", self.state.selected_weapon)
-                    
+
             elif command == "start_scan":
                 if self.state.active:
                     self.trigger_event("scan_started")
-                    
+
             elif command == "select_weapon":
                 if isinstance(data, WeaponType):
                     self.state.selected_weapon = data
@@ -345,25 +259,70 @@ class AppController:
                         "Auto": WeaponType.AUTO
                     }
                     self.state.selected_weapon = weapon_map.get(data, WeaponType.NONE)
-                
+
                 self.trigger_event("weapon_selected", self.state.selected_weapon)
-                
+
         except Exception as e:
             self.stats['errors'] += 1
             self.add_log(f"Komut işleme hatası: {e}", "ERROR")
+
+
+
+    def _convert_command_to_raspberry_format(self, command: str, data: Any) -> Optional[Dict[str, Any]]:
+        """GUI komutunu Raspberry WebSocket formatına çevir"""
+        raspberry_data = {}
+
+        if command == "change_mode":
+            try:
+                mode = data.value if isinstance(data, SystemMode) else int(data)
+                raspberry_data["system_mode"] = mode
+            except (ValueError, TypeError):
+                pass
+
+        elif command == "start_system":
+                pass
+        elif command == "stop_system":
+            raspberry_data["system_mode"] = -1
+
+        elif command == "emergency_stop":
+            raspberry_data["system_mode"] = -1
+
+        elif command == "fire_weapon":
+            raspberry_data["fire_gui_flag"] = True
+            raspberry_data["engagement_started_flag"] = True
+
+        elif command == "start_scan":
+            raspberry_data["scanning_target_flag"] = True  # ← bu shared_memory'de varsa etkili olur
+
+        elif command == "select_weapon":
+            weapon_value = data.value if hasattr(data, "value") else str(data)
+            weapon_map = {
+                "Laser": "L",
+                "Airgun": "A",
+                "Auto": "E",
+                "None": "E"
+            }
+            raspberry_data["weapon"] = weapon_map.get(weapon_value, "E")  # ← eğer WebSocket'te işleniyorsa ekle
+
+        elif command == "calibrate_joystick":
+            raspberry_data["calibration_flag"] = True
+
+        elif command == "update_target_position":
+            if isinstance(data, dict) and "x" in data and "y" in data:
+                raspberry_data["x_target"] = int(data["x"])
+                raspberry_data["y_target"] = int(data["y"])
+
+        return raspberry_data if raspberry_data else None
+
+
     
     def _on_raspberry_data_received(self, data: Dict[str, Any]):
         """Raspberry Pi'den veri alındığında"""
         try:
-            # Raspberry formatını GUI formatına çevir
             gui_data = self._convert_raspberry_data_to_gui_format(data)
-            
-            # Sistem durumunu güncelle
             self.update_target_data(gui_data)
-            
             self.stats['updates_received'] += 1
             self.add_log(f"Raspberry'den veri alındı", "DEBUG")
-            
         except Exception as e:
             self.add_log(f"Raspberry veri işleme hatası: {e}", "ERROR")
     
@@ -398,7 +357,6 @@ class AppController:
         self.trigger_event("raspberry_error", error_message)
     
     def _convert_raspberry_data_to_gui_format(self, raspberry_data: Dict[str, Any]) -> Dict[str, Any]:
-<<<<<<< HEAD
         """WebSocket'tan gelen Raspberry formatını GUI formatına çevir"""
         gui_data = {}
         
@@ -416,28 +374,17 @@ class AppController:
         # Hedef bilgileri
         if 'target_detected_flag' in raspberry_data:
             gui_data['target_locked'] = raspberry_data['target_detected_flag']
-=======
-        """Raspberry formatını GUI formatına çevir"""
-        gui_data = {}
-        
-        # Hedef pozisyonu
->>>>>>> ded40ed0e889086f110062dd1e45d9710e4db104
         if 'x_target' in raspberry_data:
             gui_data['target_x'] = float(raspberry_data['x_target'])
         if 'y_target' in raspberry_data:
             gui_data['target_y'] = float(raspberry_data['y_target'])
         
-<<<<<<< HEAD
         # Açı bilgileri
-=======
-        # Motor açıları
->>>>>>> ded40ed0e889086f110062dd1e45d9710e4db104
         if 'global_angle' in raspberry_data:
             gui_data['pan_angle'] = float(raspberry_data['global_angle'])
         if 'global_tilt_angle' in raspberry_data:
             gui_data['tilt_angle'] = float(raspberry_data['global_tilt_angle'])
         
-<<<<<<< HEAD
         # Mühimmat
         if 'weapon' in raspberry_data:
             weapon_map = {'L': 'Laser', 'A': 'Airgun', 'E': 'None'}
@@ -462,29 +409,6 @@ class AppController:
             gui_data['speed'] = 0.0  # WebSocket'tan gelmediği için 0
         
         return gui_data
-=======
-        # Sistem durumu
-        if 'system_mode' in raspberry_data:
-            gui_data['mode'] = int(raspberry_data['system_mode'])
-        if 'target_destroyed_flag' in raspberry_data:
-            gui_data['target_destroyed'] = bool(raspberry_data['target_destroyed_flag'])
-        if 'scanning_target_flag' in raspberry_data:
-            gui_data['scanning'] = bool(raspberry_data['scanning_target_flag'])
-        if 'target_detected_flag' in raspberry_data:
-            gui_data['target_locked'] = bool(raspberry_data['target_detected_flag'])
-        
-        # Mühimmat
-        if 'weapon' in raspberry_data:
-            weapon_map = {
-                'L': 'Laser',
-                'A': 'Airgun',
-                'E': 'None'
-            }
-            gui_data['weapon'] = weapon_map.get(raspberry_data['weapon'], 'Auto')
-        
-        return gui_data
-    
->>>>>>> ded40ed0e889086f110062dd1e45d9710e4db104
     def register_callback(self, event: str, callback: Callable) -> None:
         """Olay dinleyicisi kaydet"""
         if event not in self.callbacks:
@@ -673,8 +597,7 @@ class AppController:
             self.state.raspberry_connected = raspberry_connected
             
             self.add_log(f"Raspberry Pi IP değiştirildi: {ip}")
-    
-    def simulate_data(self) -> None:
+
         """Test için veri simülasyonu (Raspberry Pi bağlı değilse)"""
         if self.state.raspberry_connected:
             return  # Gerçek veri varsa simülasyon yapma

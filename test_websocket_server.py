@@ -16,7 +16,7 @@ class TestWebSocketServer:
     HTTP kaldırıldı, sadece WebSocket
     """
     
-    def __init__(self, host="192.168.0.22", port=9000):
+    def __init__(self, host="localhost", port=9000):
         self.host = host
         self.port = port
         self.clients = set()
