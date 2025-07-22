@@ -1,13 +1,8 @@
 import customtkinter as ctk
 import tkinter as tk
-<<<<<<< HEAD
 import threading  # YENİ: Threading fix için
-=======
-import threading
->>>>>>> ded40ed0e889086f110062dd1e45d9710e4db104
 import time
-import math
-import random
+
 from controllers.app_controller import AppController 
 import numpy as np  
 
@@ -56,6 +51,7 @@ class PhaseSelectionWindow:
     
         
     def setup_phase_selection(self):
+        
         # Ana çerçeve
         main_frame = ctk.CTkFrame(self.root, corner_radius=15)
         main_frame.pack(fill="both", expand=True, padx=20, pady=20)
@@ -778,7 +774,6 @@ class UpdatedCameraModule:
     def _on_data_updated(self, data):
         """Veri güncellendiğinde GUI modüllerini güncelle"""
         try:
-<<<<<<< HEAD
             # Threading hatalarını önlemek için kontrol
             pass
             
@@ -786,38 +781,6 @@ class UpdatedCameraModule:
             # Threading hatalarını bastır
             pass
     
-=======
-            # GUI thread'inde olduğumuzdan emin ol
-            if not hasattr(self.root, 'winfo_exists') or not self.root.winfo_exists():
-                return
-            
-            # Sol panel modüllerini güncelle
-            if hasattr(self, 'coords_module') and data:
-                if 'pan_angle' in data and 'tilt_angle' in data:
-                    self.coords_module.update_coordinates(
-                        distance=data.get('distance', '--'),
-                        pan=f"{data['pan_angle']:.1f}",
-                        tilt=f"{data['tilt_angle']:.1f}",
-                        speed=data.get('speed', '--')
-                    )
-            
-            # Sistem durumu güncelle
-            if hasattr(self, 'status_module') and data:
-                if data.get('target_locked'):
-                    self.status_module.update_status("Hedef Kilitli", "#00ff88")
-                    self.status_module.update_progress(1.0)
-                elif data.get('active'):
-                    self.status_module.update_status("Sistem Aktif", "#ffaa00")
-                    self.status_module.update_progress(0.5)
-                else:
-                    self.status_module.update_status("Sistem Hazır", "#cccccc")
-                    self.status_module.update_progress(0.0)
-            
-        except Exception as e:
-            # Threading hatalarını bastır
-            if "main thread is not in main loop" not in str(e):
-                print(f"[MAIN GUI] Veri güncelleme hatası: {e}")
->>>>>>> ded40ed0e889086f110062dd1e45d9710e4db104
     def _create_status_bar(self):
         """Alt durum çubuğu"""
         status_frame = ctk.CTkFrame(
@@ -828,11 +791,7 @@ class UpdatedCameraModule:
         status_frame.pack(fill="x", side="bottom", padx=5, pady=5)
         status_frame.pack_propagate(False)
         
-<<<<<<< HEAD
         # Sol taraf - Sistem durumu
-=======
-        # Sol - Sistem durumu
->>>>>>> ded40ed0e889086f110062dd1e45d9710e4db104
         left_frame = ctk.CTkFrame(status_frame, fg_color="transparent")
         left_frame.pack(side="left", fill="y", padx=10)
         
@@ -852,11 +811,7 @@ class UpdatedCameraModule:
         )
         self.status_text.pack(side="left")
         
-<<<<<<< HEAD
         # Sağ taraf - Zaman ve mod
-=======
-        # Sağ - Zaman ve mod
->>>>>>> ded40ed0e889086f110062dd1e45d9710e4db104
         right_frame = ctk.CTkFrame(status_frame, fg_color="transparent")
         right_frame.pack(side="right", fill="y", padx=10)
         
@@ -1052,10 +1007,7 @@ class UpdatedCameraModule:
             'phase': self.phase,
             'has_current_frame': self.current_frame is not None
         }
-<<<<<<< HEAD
 
-=======
->>>>>>> ded40ed0e889086f110062dd1e45d9710e4db104
 class LogModule(BaseModule):
     """Log modülü"""
     def __init__(self, parent):
@@ -1209,7 +1161,6 @@ class ControlModule(BaseModule):
         pass
 
 class SkyShieldMainGUI:
-<<<<<<< HEAD
     """Ana GUI sınıfı"""
     def __init__(self, phase):
         self.phase = phase
@@ -1232,17 +1183,25 @@ class SkyShieldMainGUI:
         self.emergency_countdown = 15
 
         # -------- YENİ: AppController entegrasyonu + GERÇEK IP --------
-        raspberry_ip = "192.168.0.22"  # ✅ KENDİ IP'NİZİ YAZIN!
-        # raspberry_ip = "localhost"      # ❌ Bu yavaş
+       # raspberry_ip = "192.168.0.22"  # ✅ KENDİ IP'NİZİ YAZIN!
+        raspberry_ip = "localhost"      # ❌ Bu yavaş
         
         self.app_controller = AppController(raspberry_ip)
-        self._register_app_callbacks()
 
+        # 1. WebSocket bağlantısını kur
+        self.app_controller.start()
+        
+
+        print(f"[MAIN GUI] Phase değeri GUI içinden: {self.phase}")
+
+        # 2. Raspberry’ye seçilen aşamayı gönder
+        self.app_controller.send_command("change_mode", self.phase)
+
+        # 3. Callback’leri kur ve GUI’yi başlat
+        self._register_app_callbacks()
         self.setup_main_gui()
         self.setup_modules()
-        
-        # AppController'ı başlat
-        self.app_controller.start()
+
         print(f"[MAIN GUI] Raspberry Pi IP: {raspberry_ip}")
 
     def center_window(self):
@@ -1264,10 +1223,6 @@ class SkyShieldMainGUI:
         
         print(f"[MAIN GUI] Pencere ortalandı: {center_x}x{center_y}")
 
-=======
-
-   
->>>>>>> ded40ed0e889086f110062dd1e45d9710e4db104
     def create_header(self):
         header_frame = ctk.CTkFrame(self.main_frame)
         header_frame.pack(fill="x", padx=10, pady=(0, 0))
@@ -1276,11 +1231,7 @@ class SkyShieldMainGUI:
         header_frame.grid_columnconfigure((0, 1, 2), weight=1, uniform="col")
         header_frame.grid_rowconfigure(0, weight=1)
 
-<<<<<<< HEAD
         # -------- YENİ: CTkImage kullan --------
-=======
-            # -------- YENİ: CTkImage kullan --------
->>>>>>> ded40ed0e889086f110062dd1e45d9710e4db104
         logo_paths = [
             os.path.join("assets", "skyshield_logo.jpg"),
             os.path.join("assets", "skyshield_logo.png"),
@@ -1352,71 +1303,13 @@ class SkyShieldMainGUI:
         )
         desc_lbl.pack(side="top", pady=(0, 0))
 
-<<<<<<< HEAD
     def _darker(self, hex_color, factor=0.85):
         """Verilen hex rengin daha koyu tonunu döndür"""
-=======
-    """Ana GUI sınıfı"""
-    def __init__(self, phase):
-        self.phase = phase
-        self.root = ctk.CTk()
-        self.root.title(f"Sky Shield - Aşama {phase}")
-        self.root.geometry("1400x900")
-        self.root.resizable(False, False)
-
-        # Temaya uygun renkler
-        self.phase_colors = {
-            0: "#9b59b6",  # Mor
-            1: "#2ecc71",  # Yeşil
-            2: "#f39c12",  # Turuncu
-            3: "#e74c3c",  # Kırmızı
-        }
-        self.theme_color = self.phase_colors.get(self.phase, "#00ff88")
-
-        self.center_window()
-        self.emergency_active = False
-        self.emergency_countdown = 15
-
-        # -------- YENİ: AppController entegrasyonu --------
-        raspberry_ip = "localhost"  # Gerçek IP: "192.168.1.100" 
-        self.app_controller = AppController(raspberry_ip)
-        self._register_app_callbacks()
-
-        self.setup_main_gui()
-        self.setup_modules()
-        
-        # AppController'ı başlat
-        self.app_controller.start()
-        print(f"[MAIN GUI] Raspberry Pi IP: {raspberry_ip}")
-
-    def center_window(self):
-        """Ana GUI penceresini ekranın ortasına yerleştir"""
-        # Pencere boyutları
-        window_width = 1400
-        window_height = 900
-        
-        # Ekran boyutlarını al
-        screen_width = self.root.winfo_screenwidth()
-        screen_height = self.root.winfo_screenheight()
-        
-        # Orta pozisyonu hesapla
-        center_x = int(screen_width/2 - window_width/2)
-        center_y = int(screen_height/2 - window_height/2)
-        
-        # Pencereyi ortala
-        self.root.geometry(f"{window_width}x{window_height}+{center_x}+{center_y}")
-        
-        print(f"[MAIN GUI] Pencere ortalandı: {center_x}x{center_y}")
-
-    def _darker(self, hex_color, factor=0.85):
-        """Verilen hex rengin daha koyu tonunu döndürür"""
->>>>>>> ded40ed0e889086f110062dd1e45d9710e4db104
         hex_color = hex_color.lstrip("#")
         rgb = tuple(int(hex_color[i:i+2], 16) for i in (0, 2, 4))
         darker_rgb = tuple(int(c * factor) for c in rgb)
         return "#%02x%02x%02x" % darker_rgb
 
-<<<<<<< HEAD
     def setup_main_gui(self):
         # Ana çerçeve
         self.main_frame = ctk.CTkFrame(self.root)
@@ -1445,121 +1338,6 @@ class SkyShieldMainGUI:
         )
         self.back_button.place(x=10, y=10)
         
-=======
-        
-    # -------- YENİ: AppController entegrasyonu --------
-        # Raspberry Pi IP'sini buradan ayarla
-        raspberry_ip = "localhost"  # Gerçek IP'yi buraya yaz: "192.168.1.100" 
-        
-        # AppController'ı oluştur
-        self.app_controller = AppController(raspberry_ip)
-        
-        # AppController callback'lerini kaydet
-        self._register_app_callbacks()
-
-        self.setup_main_gui()
-        self.setup_modules()
-        
-        # AppController'ı başlat
-        self.app_controller.start()
-        
-        print(f"[MAIN GUI] Raspberry Pi IP: {raspberry_ip}")
-        
-    def _register_app_callbacks(self):
-        """AppController callback'lerini kaydet"""
-        # Veri güncellendiğinde GUI'yi güncelle
-        self.app_controller.register_callback("data_updated", self._on_data_updated)
-        
-        # Log eklendiğinde
-        self.app_controller.register_callback("log_added", self._on_log_added)
-        
-        # Raspberry Pi bağlantı durumu değiştiğinde
-        self.app_controller.register_callback("raspberry_connection_changed", self._on_raspberry_connection_changed)
-        
-        # Hata oluştuğunda
-        self.app_controller.register_callback("raspberry_error", self._on_raspberry_error)
-
-    def _on_data_updated(self, data):
-        """Veri güncellendiğinde GUI modüllerini güncelle"""
-        try:
-            # Sol panel modüllerini güncelle
-            if hasattr(self, 'coords_module'):
-                if 'pan_angle' in data and 'tilt_angle' in data:
-                    self.coords_module.update_coordinates(
-                        distance=data.get('distance', '--'),
-                        pan=f"{data['pan_angle']:.1f}",
-                        tilt=f"{data['tilt_angle']:.1f}",
-                        speed=data.get('speed', '--')
-                    )
-            
-            # Sistem durumu güncelle
-            if hasattr(self, 'status_module'):
-                if data.get('target_locked'):
-                    self.status_module.update_status("Hedef Kilitli", "#00ff88")
-                    self.status_module.update_progress(1.0)
-                elif data.get('active'):
-                    self.status_module.update_status("Sistem Aktif", "#ffaa00")
-                    self.status_module.update_progress(0.5)
-                else:
-                    self.status_module.update_status("Sistem Hazır", "#cccccc")
-                    self.status_module.update_progress(0.0)
-            
-        except Exception as e:
-            print(f"[MAIN GUI] Veri güncelleme hatası: {e}")
-
-    def _on_log_added(self, log_entry):
-        """Log eklendiğinde"""
-        try:
-            if hasattr(self, 'log_module'):
-                # Log entry formatını parse et
-                # "[HH:MM:SS] [LEVEL] message"
-                parts = log_entry.split('] ', 2)
-                if len(parts) >= 3:
-                    message = parts[2]
-                    self.log_module.add_log(message)
-                else:
-                    self.log_module.add_log(log_entry)
-        except Exception as e:
-            print(f"[MAIN GUI] Log ekleme hatası: {e}")
-
-    def _on_raspberry_connection_changed(self, connection_data):
-        """Raspberry Pi bağlantı durumu değiştiğinde"""
-        try:
-            connected = connection_data.get('connected', False) if connection_data else False
-            details = connection_data.get('details', {}) if connection_data else {}
-            
-            # Status modülünü güncelle
-            if hasattr(self, 'status_module'):
-                if connected:
-                    self.status_module.update_status("Raspberry Pi Bağlı", "#00ff88")
-                else:
-                    self.status_module.update_status("Raspberry Pi Bağlantısı Yok", "#ff6666")
-            
-            # Log ekle
-            status = "bağlandı" if connected else "bağlantı kesildi"
-            if hasattr(self, 'log_module'):
-                self.log_module.add_log(f"Raspberry Pi {status}")
-                
-        except Exception as e:
-            print(f"[MAIN GUI] Bağlantı durumu güncelleme hatası: {e}")
-
-    def _on_raspberry_error(self, error_message):
-        """Raspberry Pi hata oluştuğunda"""
-        try:
-            if hasattr(self, 'log_module'):
-                self.log_module.add_log(f"HATA: {error_message}")
-            
-            if hasattr(self, 'status_module'):
-                self.status_module.update_status("Raspberry Pi Hatası", "#ff0000")
-                
-        except Exception as e:
-            print(f"[MAIN GUI] Hata işleme hatası: {e}")
-
-    """
-    3. SETUP_MODULES METHOD'UNU GÜNCELLE:
-    """
-
->>>>>>> ded40ed0e889086f110062dd1e45d9710e4db104
     def setup_modules(self):
         # Sol panel - Durum ve bilgiler (Askeri tema)
         left_frame = ctk.CTkFrame(self.content_frame, width=280, fg_color="#1a1a1a")
@@ -1602,13 +1380,6 @@ class SkyShieldMainGUI:
         self.log_module = LogModule(right_frame)
         self.log_module.pack(fill="both", expand=True, padx=10, pady=5)
 
-<<<<<<< HEAD
-=======
-    """
-    4. SYSTEM CONTROL METHOD'LARINI GÜNCELLE:
-    """
-
->>>>>>> ded40ed0e889086f110062dd1e45d9710e4db104
     def start_system(self):
         """Sistem başlat - AppController ile"""
         # AppController'a komut gönder
@@ -1645,13 +1416,6 @@ class SkyShieldMainGUI:
         # 15 saniye geri sayım başlat
         self.start_emergency_countdown()
 
-<<<<<<< HEAD
-=======
-    """
-    5. _STOP_ALL_SYSTEMS METHOD'UNU GÜNCELLE:
-    """
-
->>>>>>> ded40ed0e889086f110062dd1e45d9710e4db104
     def _stop_all_systems(self):
         """Acil durdurma - Tüm sistemleri durdur"""
         try:
@@ -1669,13 +1433,6 @@ class SkyShieldMainGUI:
         except Exception as e:
             print(f"[EMERGENCY] Sistem durdurma hatası: {e}")
 
-<<<<<<< HEAD
-=======
-    """
-    6. _RESTART_ALL_SYSTEMS METHOD'UNU GÜNCELLE:
-    """
-
->>>>>>> ded40ed0e889086f110062dd1e45d9710e4db104
     def _restart_all_systems(self):
         """Acil durumdan sonra sistemleri yeniden başlat"""
         try:
@@ -1683,12 +1440,6 @@ class SkyShieldMainGUI:
             if hasattr(self, 'camera_module'):
                 self.camera_module.restart_camera()
             
-<<<<<<< HEAD
-=======
-            # AppController'a sistem başlat komutu gönder (ancak acil durdur iptal et)
-            # Emergency stop flag'ini sıfırla
-            
->>>>>>> ded40ed0e889086f110062dd1e45d9710e4db104
             # Log ekle
             if hasattr(self, 'log_module'):
                 self.log_module.add_log("🟢 Sistemler yeniden başlatıldı")
@@ -1696,149 +1447,6 @@ class SkyShieldMainGUI:
         except Exception as e:
             print(f"[RESTART] Sistem yeniden başlatma hatası: {e}")
 
-<<<<<<< HEAD
-=======
-    """
-    7. CLASS DESTRUCTOR EKLE:
-    """
-
-    def __del__(self):
-        """GUI kapatılırken temizlik"""
-        try:
-            if hasattr(self, 'app_controller'):
-                self.app_controller.stop()
-        except:
-            pass
-
-    def _return_to_menu(self):
-        """Ana menüye dön"""
-        # AppController'ı durdur
-        if hasattr(self, 'app_controller'):
-            self.app_controller.stop()
-        
-        self.root.destroy()
-        # Ana menüyü yeniden başlat
-        main()
-
-    """
-    8. RASPBERRY PI IP AYARI İÇİN YENİ METHOD EKLE:
-    """
-
-    def set_raspberry_ip(self, ip_address: str):
-        """Raspberry Pi IP adresini değiştir"""
-        try:
-            if hasattr(self, 'app_controller'):
-                self.app_controller.set_raspberry_ip(ip_address)
-                
-                if hasattr(self, 'log_module'):
-                    self.log_module.add_log(f"Raspberry Pi IP: {ip_address}")
-            
-        except Exception as e:
-            print(f"[IP CHANGE] IP değiştirme hatası: {e}")
-            if hasattr(self, 'log_module'):
-                self.log_module.add_log(f"IP değiştirme hatası: {e}")    
-
-            
-        def center_window(self):
-            """Ana GUI penceresini ekranın ortasına yerleştir"""
-            # Pencere boyutları
-            window_width = 1400
-            window_height = 900
-            
-            # Ekran boyutlarını al
-            screen_width = self.root.winfo_screenwidth()
-            screen_height = self.root.winfo_screenheight()
-            
-            # Orta pozisyonu hesapla
-            center_x = int(screen_width/2 - window_width/2)
-            center_y = int(screen_height/2 - window_height/2)
-            
-            # Pencereyi ortala
-            self.root.geometry(f"{window_width}x{window_height}+{center_x}+{center_y}")
-            
-            print(f"[MAIN GUI] Pencere ortalandı: {center_x}x{center_y}")
-            
-    def setup_main_gui(self):
-        # Ana çerçeve
-        self.main_frame = ctk.CTkFrame(self.root)
-        self.main_frame.pack(fill="both", expand=True, padx=10, pady=10)
-        
-        # Başlık
-        self.create_header()
-        
-        # Ana içerik alanı
-        self.content_frame = ctk.CTkFrame(self.main_frame)
-        self.content_frame.pack(fill="both", expand=True, padx=10, pady=5)
-        
-        # Alt panel - Acil durum
-        self.create_bottom_panel()
-        
-        # Geri dönme butonu
-        self.back_button = ctk.CTkButton(
-            self.root,
-            text="←",
-            command=self._return_to_menu,
-            width=35,
-            height=30,
-            fg_color=self.theme_color,
-            hover_color=self._darker(self.theme_color),
-            font=ctk.CTkFont(size=16)
-        )
-        
-
-        self.back_button.place(x=10, y=10)
-
-    
-    def _darker(self, hex_color, factor=0.85):
-        """Verilen hex rengin daha koyu tonunu döndürür"""
-        hex_color = hex_color.lstrip("#")
-        rgb = tuple(int(hex_color[i:i+2], 16) for i in (0, 2, 4))
-        darker_rgb = tuple(int(c * factor) for c in rgb)
-        return "#%02x%02x%02x" % darker_rgb    
-    
-        
-    def setup_modules(self):
-        # Sol panel - Durum ve bilgiler (Askeri tema)
-        left_frame = ctk.CTkFrame(self.content_frame, width=280, fg_color="#1a1a1a")
-        left_frame.pack(side="left", fill="y", padx=5)
-        left_frame.pack_propagate(False)
-        
-        # Sistem durumu modülü
-        self.status_module = SystemStatusModule(left_frame)
-        self.status_module.pack(fill="x", padx=10, pady=10)
-        
-        # Hedef bilgileri modülü
-        self.target_module = TargetInfoModule(left_frame, self.phase)
-        self.target_module.pack(fill="x", padx=10, pady=5)
-        
-        # Koordinatlar modülü
-        self.coords_module = CoordinatesModule(left_frame)
-        self.coords_module.pack(fill="x", padx=10, pady=5)
-        
-        # Mühimmat modülü
-        self.weapon_module = WeaponModule(left_frame)
-        self.weapon_module.pack(fill="x", padx=10, pady=5)
-        
-        # Orta panel - Kamera (Askeri targeting sistemi)
-        center_frame = ctk.CTkFrame(self.content_frame, fg_color="#000000")
-        center_frame.pack(side="left", fill="both", expand=True, padx=5)
-        
-        self.camera_module = UpdatedCameraModule(center_frame, self.app_controller, self.phase)  
-        
-        # Sağ panel - Kontroller ve log (Askeri tema)
-        right_frame = ctk.CTkFrame(self.content_frame, width=250, fg_color="#1a1a1a")
-        right_frame.pack(side="right", fill="y", padx=5)
-        right_frame.pack_propagate(False)
-        
-        # Kontroller
-        self.control_module = ControlModule(right_frame, self.phase)
-        self.control_module.pack(fill="x", padx=10, pady=5)
-        
-        # Log
-        self.log_module = LogModule(right_frame)
-        self.log_module.pack(fill="both", expand=True, padx=10, pady=5)
-        
->>>>>>> ded40ed0e889086f110062dd1e45d9710e4db104
     def create_bottom_panel(self):
         bottom_frame = ctk.CTkFrame(self.main_frame, height=80)
         bottom_frame.pack(fill="x", padx=10, pady=5)
@@ -1887,87 +1495,6 @@ class SkyShieldMainGUI:
         )
         self.emergency_button.pack(padx=10, pady=10)
         
-<<<<<<< HEAD
-=======
-    def start_system(self):
-        """Sistem başlat - AppController ile"""
-        # AppController'a komut gönder
-        self.app_controller.send_command("start_system")
-        self.app_controller.send_command("change_mode", self.phase)
-        
-        # UI güncellemeleri callback'ler ile gelecek
-        if hasattr(self, 'log_module'):
-            self.log_module.add_log(f"Sistem başlatıldı - Aşama {self.phase}")
-            
-    def stop_system(self):
-         self.app_controller.send_command("stop_system")
-         if hasattr(self, 'log_module'):
-            self.log_module.add_log("Sistem durduruldu")
-        
-    def emergency_stop(self):
-        # Acil durdur butonu titreme efekti
-        self.emergency_button.configure(fg_color="#ff0000", text="🚨 ACTİVE! 🚨")
-        
-        # TÜM SİSTEMLERİ DURDUR
-        self._stop_all_systems()
-        
-        # Uyarı popup'ı oluştur
-        self.create_emergency_popup()
-        
-        # Sistem durumunu güncelle
-        self.status_module.update_status("ACİL DURDUR AKTİVE!", "#ff0000")
-        self.log_module.add_log("⚠️ ACİL DURDUR AKTİVE EDİLDİ!")
-        
-        # 15 saniye geri sayım başlat
-        self.start_emergency_countdown()
-    
-    def _stop_all_systems(self):
-        """Acil durdurma - Tüm sistemleri durdur"""
-        try:
-            # Kamera animasyonlarını durdur
-            if hasattr(self, 'camera_module'):
-                self.camera_module.camera_active = False
-                self.camera_module.target_locked = False
-                
-                # Kamera canvas'ını temizle ve durduruldu mesajı göster
-                if hasattr(self.camera_module, 'camera_canvas'):
-                    canvas = self.camera_module.camera_canvas
-                    canvas.delete("all")  # Tüm animasyonları temizle
-                    
-                    # ACİL DURDUR mesajı
-                    canvas.create_rectangle(0, 0, 500, 350, fill="#ff0000", outline="#ffffff", width=3)
-                    canvas.create_text(250, 150, text="🚨 ACİL DURDUR 🚨", 
-                                     fill="#ffffff", font=("Arial", 24, "bold"))
-                    canvas.create_text(250, 200, text="TÜM SİSTEMLER DURDURULDU", 
-                                     fill="#ffffff", font=("Arial", 14, "bold"))
-                
-                # Kamera kontrollerini devre dışı bırak
-                if hasattr(self.camera_module, 'record_button'):
-                    self.camera_module.record_button.configure(state="disabled")
-                if hasattr(self.camera_module, 'snapshot_button'):
-                    self.camera_module.snapshot_button.configure(state="disabled")
-                if hasattr(self.camera_module, 'lock_button'):
-                    self.camera_module.lock_button.configure(state="disabled")
-                
-                # Durum çubuğunu güncelle
-                if hasattr(self.camera_module, 'status_text'):
-                    self.camera_module.status_text.configure(text="SİSTEM DURUMU: ACİL DURDUR AKTİVE")
-                if hasattr(self.camera_module, 'status_icon'):
-                    self.camera_module.status_icon.configure(text="🚨")
-            
-            # Sistem durumunu güncelle
-            if hasattr(self, 'status_module'):
-                self.status_module.update_progress(0.0)  # Progress bar'ı sıfırla
-            
-            self.log_module.add_log("🛑 Kamera sistemleri durduruldu")
-            self.log_module.add_log("🛑 Hedef takip sistemleri devre dışı")
-            self.log_module.add_log("🛑 Animasyonlar durduruldu")
-            
-        except Exception as e:
-            print(f"[EMERGENCY] Sistem durdurma hatası: {e}")
-            self.log_module.add_log(f"❌ Sistem durdurma hatası: {e}")
-    
->>>>>>> ded40ed0e889086f110062dd1e45d9710e4db104
     def create_emergency_popup(self):
         """Acil durdur uyarı popup'ı"""
         # Popup penceresi
@@ -2085,49 +1612,6 @@ class SkyShieldMainGUI:
         self.status_module.update_status("Sistem Hazır", "#00ff88")
         self.log_module.add_log("✅ Acil durdur iptal edildi - Sistem normale döndü")
     
-<<<<<<< HEAD
-=======
-    def _restart_all_systems(self):
-        """Acil durumdan sonra sistemleri yeniden başlat"""
-        try:
-            # Kamera sistemlerini yeniden başlat
-            if hasattr(self, 'camera_module'):
-                self.camera_module.camera_active = True
-                
-                # Canvas'ı temizle ve animasyonları yeniden başlat
-                if hasattr(self.camera_module, 'camera_canvas'):
-                    canvas = self.camera_module.camera_canvas
-                    canvas.delete("all")
-                    
-                    # Targeting sistemini yeniden kur
-                    self.camera_module.setup_targeting_system()
-                    
-                    # Animasyonu yeniden başlat
-                    self.camera_module.start_targeting_animation()
-                
-                # Kamera kontrollerini yeniden etkinleştir
-                if hasattr(self.camera_module, 'record_button'):
-                    self.camera_module.record_button.configure(state="normal")
-                if hasattr(self.camera_module, 'snapshot_button'):
-                    self.camera_module.snapshot_button.configure(state="normal")
-                if hasattr(self.camera_module, 'lock_button'):
-                    self.camera_module.lock_button.configure(state="normal")
-                
-                # Durum çubuğunu güncelle
-                if hasattr(self.camera_module, 'status_text'):
-                    self.camera_module.status_text.configure(text="SİSTEM DURUMU: Hazır")
-                if hasattr(self.camera_module, 'status_icon'):
-                    self.camera_module.status_icon.configure(text="⚠️")
-            
-            self.log_module.add_log("🟢 Kamera sistemleri yeniden başlatıldı")
-            self.log_module.add_log("🟢 Hedef takip sistemleri aktif")
-            self.log_module.add_log("🟢 Animasyonlar yeniden başladı")
-            
-        except Exception as e:
-            print(f"[RESTART] Sistem yeniden başlatma hatası: {e}")
-            self.log_module.add_log(f"❌ Sistem yeniden başlatma hatası: {e}")
-    
->>>>>>> ded40ed0e889086f110062dd1e45d9710e4db104
     def force_close(self):
         """Zorla kapat"""
         try:
@@ -2141,7 +1625,6 @@ class SkyShieldMainGUI:
         self.root.destroy()
         # Ana menüyü yeniden başlat
         main()
-<<<<<<< HEAD
 
     def __del__(self):
         """GUI kapatılırken temizlik"""
@@ -2274,8 +1757,6 @@ class SkyShieldMainGUI:
     def _on_raspberry_error(self, error_message):
         """ESKİ VERSİYON - Artık kullanılmıyor"""
         pass
-=======
->>>>>>> ded40ed0e889086f110062dd1e45d9710e4db104
         
     def run(self):
         self.root.mainloop()
