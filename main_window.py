@@ -438,6 +438,8 @@ class WeaponModule(BaseModule):
 
     def __init__(self, parent):
         super().__init__(parent, "MÜHİMMAT SİSTEMİ")
+        self.app_controller = None  # EKLE
+
         self.control_mode = "Otomatik"
         self.selected_weapon = "Lazer"
         self.setup_module()
@@ -514,6 +516,9 @@ class WeaponModule(BaseModule):
             self.selected_weapon = weapon
             self.update_weapon_selection(weapon)
             self.update_weapon_status()
+            # App controller'a gönder
+            if self.app_controller:
+                self.app_controller.send_command("select_weapon", weapon)
 
     def update_weapon_selection(self, weapon_type):
         self.weapon_label.configure(text=f"Seçili: {weapon_type}")
@@ -614,84 +619,51 @@ class UpdatedCameraModule:
     def _create_default_frame(self):
         """Varsayılan kamera frame'i oluştur"""
         try:
-            # Siyah arka plan ile targeting sistemi
+            # Siyah arka plan ile basit metin
             img = Image.new('RGB', (500, 350), color='black')
             
-            # PIL Image'ı Tkinter PhotoImage'a çevir
+            # PIL üzerine metin yaz
+            from PIL import ImageDraw, ImageFont
+            draw = ImageDraw.Draw(img)
+            
+            # Merkeze "GÖRÜNTÜ YOK" yaz
+            text = "GÖRÜNTÜ YOK"
+            try:
+                # Windows için
+                font = ImageFont.truetype("arial.ttf", 24)
+            except:
+                try:
+                    # Linux için
+                    font = ImageFont.truetype("DejaVuSans.ttf", 24)
+                except:
+                    # Varsayılan font
+                    font = ImageFont.load_default()
+            
+            # Metin boyutunu al ve ortala
+            bbox = draw.textbbox((0, 0), text, font=font)
+            text_width = bbox[2] - bbox[0]
+            text_height = bbox[3] - bbox[1]
+            
+            x = (500 - text_width) // 2
+            y = (350 - text_height) // 2
+            
+            draw.text((x, y), text, fill='white', font=font)
+            
+            # Tkinter PhotoImage'a çevir
             self.current_frame = ImageTk.PhotoImage(img)
             self.camera_label.configure(image=self.current_frame)
             
-            # Targeting overlay'ini canvas ile ekle
-            self._create_targeting_overlay()
-            
+   
             self.default_frame_created = True
             print("[CAMERA MODULE] Varsayılan frame oluşturuldu")
             
         except Exception as e:
             print(f"[CAMERA MODULE] Varsayılan frame oluşturma hatası: {e}")
-            self.camera_label.configure(text="📷 KAMERA HAZIR")
+            # Fallback: sadece metin göster
+            self.camera_label.configure(text="GÖRÜNTÜ YOK", font=("Arial", 20))
     
-    def _create_targeting_overlay(self):
-        """Targeting sistemi overlay'i (Canvas ile)"""
-        try:
-            # Eğer zaten canvas varsa kaldır
-            if hasattr(self, 'targeting_canvas'):
-                self.targeting_canvas.destroy()
-            
-            # Targeting canvas oluştur
-            self.targeting_canvas = tk.Canvas(
-                self.camera_container,
-                bg='black',
-                highlightthickness=0,
-                width=500,
-                height=350
-            )
-            self.targeting_canvas.place(x=10, y=10, width=500, height=350)
-            
-            # Crosshair çiz
-            self._draw_targeting_elements()
-            
-        except Exception as e:
-            print(f"[CAMERA MODULE] Targeting overlay hatası: {e}")
-    
-    def _draw_targeting_elements(self):
-        """Targeting elementlerini çiz"""
-        if not hasattr(self, 'targeting_canvas'):
-            return
-            
-        canvas = self.targeting_canvas
-        canvas.delete("all")  # Önceki çizimleri temizle
-        
-        # Merkez crosshair
-        canvas.create_line(250, 160, 250, 190, fill="#ffff00", width=2, tags="crosshair")
-        canvas.create_line(235, 175, 265, 175, fill="#ffff00", width=2, tags="crosshair")
-        
-        # Köşe çerçeveleri
-        # Sol üst
-        canvas.create_line(50, 50, 80, 50, fill="#ffff00", width=3, tags="brackets")
-        canvas.create_line(50, 50, 50, 80, fill="#ffff00", width=3, tags="brackets")
-        
-        # Sağ üst  
-        canvas.create_line(420, 50, 450, 50, fill="#ffff00", width=3, tags="brackets")
-        canvas.create_line(450, 50, 450, 80, fill="#ffff00", width=3, tags="brackets")
-        
-        # Sol alt
-        canvas.create_line(50, 270, 80, 270, fill="#ffff00", width=3, tags="brackets")
-        canvas.create_line(50, 270, 50, 300, fill="#ffff00", width=3, tags="brackets")
-        
-        # Sağ alt
-        canvas.create_line(420, 270, 450, 270, fill="#ffff00", width=3, tags="brackets")
-        canvas.create_line(450, 270, 450, 300, fill="#ffff00", width=3, tags="brackets")
-        
-        # Grid çizgileri
-        for i in range(100, 400, 50):
-            canvas.create_line(i, 0, i, 350, fill="#333333", width=1, tags="grid")
-        for i in range(50, 300, 50):
-            canvas.create_line(0, i, 500, i, fill="#333333", width=1, tags="grid")
-        
-        # Hedef göstergesi
-        self._draw_target_indicator()
-    
+
+
     def _draw_target_indicator(self):
         """Hedef göstergesini çiz"""
         if not hasattr(self, 'targeting_canvas'):
@@ -737,9 +709,7 @@ class UpdatedCameraModule:
                 
                 # Label'ı güncelle
                 self.camera_label.configure(image=self.current_frame)
-                
-                # Targeting overlay'ini güncelle
-                self._draw_targeting_elements()
+      
                 
                 print("[CAMERA MODULE] Frame güncellendi")
                 
@@ -987,10 +957,7 @@ class UpdatedCameraModule:
     def restart_camera(self):
         """Kamera modülünü yeniden başlat"""
         self.camera_active = True
-        
-        # Targeting overlay'ini yeniden oluştur
-        self._draw_targeting_elements()
-        
+           
         # Durum güncelle
         self.status_text.configure(text="SİSTEM DURUMU: Hazır")
         self.status_icon.configure(text="📷")
@@ -1047,6 +1014,8 @@ class ControlModule(BaseModule):
     def __init__(self, parent, phase):
         super().__init__(parent, "SİSTEM KONTROLLERİ")
         self.phase = phase
+        self.app_controller = None  # BU SATIRI EKLE
+
         self.setup_module()
         
     def setup_module(self):
@@ -1137,28 +1106,30 @@ class ControlModule(BaseModule):
         calibrate_button.pack(fill="x", padx=10, pady=2)
         
     def start_auto_scan(self):
-        # Aşama 1 otomatik tarama
-        pass
-        
-    def start_enemy_detection(self):
-        # Aşama 2 düşman tespiti
-        pass
-        
-    def start_engagement(self):
-        # Aşama 3 angajman
-        pass
-        
-    def read_qr_code(self):
-        # QR kod okuma
-        pass
-        
-    def fire_weapon(self):
-        # Ateş etme
-        pass
-        
-    def calibrate(self):
-        # Kalibrasyon
-        pass
+        if self.app_controller:
+         self.app_controller.send_command("start_scan")
+
+def start_enemy_detection(self):
+    if self.app_controller:
+        self.app_controller.send_command("start_system")
+        self.app_controller.send_command("change_mode", 2)
+
+def start_engagement(self):
+    if self.app_controller:
+        self.app_controller.send_command("start_system")
+        self.app_controller.send_command("change_mode", 3)
+
+def read_qr_code(self):
+    if self.app_controller:
+        self.app_controller.send_command("read_qr")
+
+def fire_weapon(self):
+    if self.app_controller:
+        self.app_controller.send_command("fire_weapon")
+
+def calibrate(self):
+    if self.app_controller:
+        self.app_controller.send_command("calibrate_joystick")
 
 class SkyShieldMainGUI:
     """Ana GUI sınıfı"""
@@ -1358,6 +1329,8 @@ class SkyShieldMainGUI:
         
         # Mühimmat modülü
         self.weapon_module = WeaponModule(left_frame)
+        self.weapon_module.app_controller = self.app_controller  # EKLE
+
         self.weapon_module.pack(fill="x", padx=10, pady=5)
         
         # -------- YENİ: Orta panel - Gerçek Kamera Modülü --------
@@ -1372,11 +1345,12 @@ class SkyShieldMainGUI:
         right_frame.pack(side="right", fill="y", padx=5)
         right_frame.pack_propagate(False)
         
+   
         # Kontroller
         self.control_module = ControlModule(right_frame, self.phase)
+        self.control_module.app_controller = self.app_controller  # EKLE
         self.control_module.pack(fill="x", padx=10, pady=5)
-        
-        # Log
+         # Log
         self.log_module = LogModule(right_frame)
         self.log_module.pack(fill="both", expand=True, padx=10, pady=5)
 

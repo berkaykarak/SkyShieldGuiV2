@@ -4,7 +4,7 @@ Controllers Package
 Sky Shield GUI kontrolcüleri ve iş mantığı
 """
 
-from controllers import AppController, SystemMode, WeaponType, TargetData, SystemState
+from .app_controller import AppController, SystemMode, WeaponType, TargetData, SystemState
 
 __all__ = [
     'AppController',
