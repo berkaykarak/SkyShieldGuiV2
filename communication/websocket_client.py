@@ -306,8 +306,14 @@ class WebSocketCommunicationClient:
             # Hedef tarafı
             if 'target_side' in raspberry_data:
                 gui_data['target_side'] = raspberry_data['target_side']
-            
-            # Hesaplanmış veriler
+            if 'controller_connected' in raspberry_data:
+                gui_data['controller_connected'] = bool(raspberry_data['controller_connected'])
+                print(f"[DEBUG] Controller verisi alındı: {raspberry_data['controller_connected']} (bool: {gui_data['controller_connected']})")
+            else:
+                gui_data['controller_connected'] = False
+                print(f"[DEBUG] Controller verisi eksik, varsayılan: False")
+
+                # Hesaplanmış veriler
             gui_data['last_update'] = datetime.now().strftime("%H:%M:%S")
             
             # Dummy veriler (simülasyon için)

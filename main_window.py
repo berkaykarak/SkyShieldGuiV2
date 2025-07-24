@@ -279,13 +279,14 @@ class TargetInfoModule(BaseModule):
             self.create_phase2_info()
         elif self.phase == 3:
             self.create_phase3_info()
+     
     def create_manual_mode_info(self):
         """Aşama 0: Manuel mod bilgileri"""
         self.controller_status = ctk.CTkLabel(
             self.frame,
-            text="🎮 Controller: Bağlı Değil",
+            text="🎮 Controller: Kontrol Ediliyor...",  # ✅ Başlangıç metni değişti
             font=ctk.CTkFont(size=12),
-            text_color="#ff6b6b"
+            text_color="#ffaa00"  # ✅ Sarı renk (kontrol ediliyor)
         )
         self.controller_status.pack(pady=2)
         
@@ -295,7 +296,25 @@ class TargetInfoModule(BaseModule):
             font=ctk.CTkFont(size=12),
             text_color="#00ccff"
         )
-        self.control_mode.pack(pady=2) 
+        self.control_mode.pack(pady=2)
+    def update_controller_status(self, data):
+            """Controller bağlantı durumunu güncelle - Sadece Aşama 0 için"""
+            if self.phase != 0:  # Sadece manuel modda çalışır
+                return
+            
+            # Controller verisi kontrol et
+            if data.get('controller_connected')is True:
+                self.controller_status.configure(
+                    text="🎮 Controller: Bağlı",
+                    text_color="#00ff88"  # Yeşil = bağlı
+                )
+                print("[TARGET MODULE] Controller durumu güncellendi: Bağlı")
+            else:
+                self.controller_status.configure(
+                    text="🎮 Controller: Bağlı Değil", 
+                    text_color="#ff6b6b"  # Kırmızı = bağlı değil
+                )
+                print("[TARGET MODULE] Controller durumu güncellendi: Bağlı Değil")
             
     def create_phase1_info(self):
         """Aşama 1: Temel hedef bilgileri"""
@@ -402,7 +421,7 @@ class CoordinatesModule(BaseModule):
             
     def update_coordinates(self, distance=None, pan=None, tilt=None, speed=None):
         
-        if pan is not None:
+        if pan is not None: 
             self.coord_labels["Açı (Pan)"].configure(text=f"{pan}°")
         if tilt is not None:
             self.coord_labels["Açı (Tilt)"].configure(text=f"{tilt}°")
@@ -1715,6 +1734,14 @@ class SkyShieldMainGUI:
                 else:
                     self.status_module.update_status("Sistem Hazır", "#cccccc")
                     self.status_module.update_progress(0.0)
+             
+                # ✅ YENİ: CONTROLLER DURUMU GÜNCELLE (Sadece Aşama 0 için)
+            if (hasattr(self, 'target_module') and 
+                hasattr(self.target_module, 'update_controller_status') and
+                self.phase == 0):  # Sadece manuel modda
+                
+                print(f"[MAIN GUI] Controller verisi gönderiliyor: {data.get('controller_connected', 'EKSIK')}")
+                self.target_module.update_controller_status(data)
             
         except Exception as e:
             print(f"[MAIN GUI] GUI güncelleme hatası: {e}")

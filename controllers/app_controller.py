@@ -66,6 +66,7 @@ class SystemState:
     # Raspberry Pi bağlantı durumu
     raspberry_connected: bool = False
     camera_connected: bool = False
+    controller_connected: bool = False
     
     def __post_init__(self):
         if self.target is None:
@@ -446,6 +447,8 @@ class AppController:
                 gui_data['target_destroyed'] = raspberry_data['target_destroyed_flag']
             if 'target_side' in raspberry_data:
                 gui_data['target_side'] = raspberry_data['target_side']
+            if 'controller_connected' in raspberry_data:
+                gui_data['controller_connected'] = bool(raspberry_data['controller_connected'])
             
             print(f"[DEBUG] Final GUI verisi: {gui_data}")
             
@@ -485,6 +488,8 @@ class AppController:
             self.state.target.speed = target_data['speed']
         if 'target_locked' in target_data:
             self.state.target.locked = target_data['target_locked']
+        if 'controller_connected' in target_data:
+            self.state.controller_connected = target_data['controller_connected']
         if 'weapon' in target_data:
             weapon_map = {
                 'Laser': WeaponType.LASER,
@@ -535,6 +540,8 @@ class AppController:
             # Bağlantı durumu
             'raspberry_connected': self.state.raspberry_connected,
             'camera_connected': self.state.camera_connected,
+            'controller_connected': getattr(self.state, 'controller_connected', False),  # <-- ekle!
+
             
             # Hedef bilgileri
             'target_locked': self.state.target.locked,

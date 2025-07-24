@@ -49,13 +49,8 @@ class TestWebSocketServer:
             "error_y": 0.0,
             
             # Joystick
-            "pan": 0,
-            "tilt": 0,
-            "btn_thumb2": False,
-            "btn_south": False,
-            "btn_east": False,
-            "btn_west": False,
-            "fine_mode": False,
+            "controller_connected": True,   
+
             
             # GUI bayrakları
             "calibration_flag": False,
@@ -65,6 +60,7 @@ class TestWebSocketServer:
         
         self.command_count = 0
         self.start_time = time.time()
+      
     
     async def handle_client(self, websocket):
         """Yeni client bağlantısını yönet"""
@@ -265,6 +261,9 @@ class TestWebSocketServer:
         """Sistem aktifken simülasyon verileri üret"""
         import random
         
+        # ✅ Controller her zaman bağlı (döngüyü kaldırdık)
+        self.shared_data["controller_connected"] = True
+        
         # Hedef hareket simülasyonu
         self.shared_data["x_target"] += random.randint(-50, 50)
         self.shared_data["y_target"] += random.randint(-50, 50)
@@ -289,7 +288,9 @@ class TestWebSocketServer:
             else:
                 self.shared_data["weapon"] = "E"
         
-        print(f"[SIMULATION] Yeni değerler: Pan={self.shared_data['global_angle']:.1f}°, Tilt={self.shared_data['global_tilt_angle']:.1f}°, Aşama={self.shared_data['phase_mode']}")
+        # Basit debug çıktısı
+        print(f"[SIMULATION] Controller: Bağlı, Pan={self.shared_data['global_angle']:.1f}°, Tilt={self.shared_data['global_tilt_angle']:.1f}°")
+ 
     async def start_server(self):
         """WebSocket server'ı başlat"""
         logging.info("🚀 Test WebSocket Server Başlatılıyor...")
