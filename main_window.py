@@ -156,15 +156,15 @@ class PhaseSelectionWindow:
     def _create_phase_card(self, parent, phase_info, row, column):
         """
         Tek bir aşama kartını grid içinde (row,col) pozisyonunda oluşturur.
-        Kartın altındaki uzun açıklamalar kaldırıldı; sadece ikon, başlık ve buton var.
+        Her aşamanın kendi rengiyle çerçeve
         """
         # Kart çerçevesini grid ile yerleştir
         card = ctk.CTkFrame(
             parent,
-            fg_color="#2a2a2a",  # İç koyu renk KALSIN
+            fg_color="#2a2a2a",  # İç koyu renk
             corner_radius=12,
             border_width=2,
-            border_color="#3399ff"  # SkyShield mavisi (kenar çizgisi)
+            border_color=phase_info["color"]  # ← Her aşamanın kendi rengi
         )
 
         card.grid(
@@ -182,7 +182,6 @@ class PhaseSelectionWindow:
             font=ctk.CTkFont(size=36),
             text_color=phase_info["color"]  # Her aşamanın kendi rengi
         )
-
         ico.pack(pady=(20, 5))
 
         # 2) Başlık
@@ -296,22 +295,7 @@ class TargetInfoModule(BaseModule):
             font=ctk.CTkFont(size=12),
             text_color="#00ccff"
         )
-        self.control_mode.pack(pady=2)
-        
-        self.sensitivity_label = ctk.CTkLabel(
-            self.frame,
-            text="Hassasiyet: Normal",
-            font=ctk.CTkFont(size=12)
-        )
-        self.sensitivity_label.pack(pady=2)
-        
-        self.safety_status = ctk.CTkLabel(
-            self.frame,
-            text="Güvenlik: Aktif",
-            font=ctk.CTkFont(size=12),
-            text_color="#00ff88"
-        )
-        self.safety_status.pack(pady=2)        
+        self.control_mode.pack(pady=2) 
             
     def create_phase1_info(self):
         """Aşama 1: Temel hedef bilgileri"""
@@ -358,13 +342,6 @@ class TargetInfoModule(BaseModule):
         
     def create_phase3_info(self):
         """Aşama 3: QR kod ve angajman bilgileri"""
-        self.qr_status_label = ctk.CTkLabel(
-            self.frame,
-            text="QR Kod: Okunmadı",
-            font=ctk.CTkFont(size=12),
-            text_color="#ff6666"
-        )
-        self.qr_status_label.pack(pady=2)
         
         self.target_color_label = ctk.CTkLabel(
             self.frame,
@@ -399,7 +376,7 @@ class CoordinatesModule(BaseModule):
         
         self.coord_labels = {}
         coord_data = [
-            ("Mesafe", "-- m"),
+            #("Mesafe", "-- m"),
             ("Açı (Pan)", "0°"),
             ("Açı (Tilt)", "0°"),
             ("Hız", "-- m/s")
@@ -424,8 +401,7 @@ class CoordinatesModule(BaseModule):
             self.coord_labels[label].pack(side="right")
             
     def update_coordinates(self, distance=None, pan=None, tilt=None, speed=None):
-        if distance is not None:
-            self.coord_labels["Mesafe"].configure(text=f"{distance} m")
+        
         if pan is not None:
             self.coord_labels["Açı (Pan)"].configure(text=f"{pan}°")
         if tilt is not None:
@@ -1034,15 +1010,7 @@ class ControlModule(BaseModule):
         
     def create_phase1_controls(self):
         """Aşama 1 kontrolleri"""
-        self.auto_button = ctk.CTkButton(
-            self.frame,
-            text="OTOMATIK TARAMA BAŞLAT",
-            fg_color="#4CAF50",
-            hover_color="#388E3C",
-            height=40,
-            command=self.start_auto_scan
-        )
-        self.auto_button.pack(fill="x", padx=10, pady=5)
+        pass
         
     def create_phase2_controls(self):
         """Aşama 2 kontrolleri"""
@@ -1058,16 +1026,7 @@ class ControlModule(BaseModule):
         
     def create_phase3_controls(self):
         """Aşama 3 kontrolleri"""
-        # QR okuma
-        qr_button = ctk.CTkButton(
-            self.frame,
-            text="QR KOD OKU",
-            fg_color="#9C27B0",
-            hover_color="#7B1FA2",
-            height=35,
-            command=self.read_qr_code
-        )
-        qr_button.pack(fill="x", padx=10, pady=2)
+    
         
         # Angajman başlat
         self.auto_button = ctk.CTkButton(
@@ -1076,23 +1035,24 @@ class ControlModule(BaseModule):
             fg_color="#F44336",
             hover_color="#D32F2F",
             height=40,
-            command=self.start_engagement
+            command=self.start_auto_scan
         )
         self.auto_button.pack(fill="x", padx=10, pady=5)
         
     def create_common_controls(self):
         """Ortak kontroller"""
         # Ateş butonu
-        self.fire_button = ctk.CTkButton(
-            self.frame,
-            text="ATEŞ!",
-            font=ctk.CTkFont(size=16, weight="bold"),
-            fg_color="#ff4444",
-            hover_color="#cc3333",
-            height=50,
-            command=self.fire_weapon
-        )
-        self.fire_button.pack(fill="x", padx=10, pady=10)
+        if self.phase == 0 or self.phase == 3:
+            self.fire_button = ctk.CTkButton(
+                self.frame,
+                text="ATEŞ!",
+                font=ctk.CTkFont(size=16, weight="bold"),
+                fg_color="#ff4444",
+                hover_color="#cc3333",
+                height=50,
+                command=self.fire_weapon
+            )
+            self.fire_button.pack(fill="x", padx=10, pady=10)
         
         # Kalibrasyon
         calibrate_button = ctk.CTkButton(
@@ -1104,32 +1064,32 @@ class ControlModule(BaseModule):
             command=self.calibrate
         )
         calibrate_button.pack(fill="x", padx=10, pady=2)
-        
+            
     def start_auto_scan(self):
+            if self.app_controller:
+                self.app_controller.send_command("start_scan")
+
+    def start_enemy_detection(self):
         if self.app_controller:
-         self.app_controller.send_command("start_scan")
+            self.app_controller.send_command("start_system")
+            self.app_controller.send_command("change_mode", 2)
 
-def start_enemy_detection(self):
-    if self.app_controller:
-        self.app_controller.send_command("start_system")
-        self.app_controller.send_command("change_mode", 2)
+    def start_engagement(self):
+        if self.app_controller:
+            self.app_controller.send_command("start_system")
+            self.app_controller.send_command("change_mode", 3)
 
-def start_engagement(self):
-    if self.app_controller:
-        self.app_controller.send_command("start_system")
-        self.app_controller.send_command("change_mode", 3)
+    def read_qr_code(self):
+        if self.app_controller:
+            self.app_controller.send_command("read_qr")
 
-def read_qr_code(self):
-    if self.app_controller:
-        self.app_controller.send_command("read_qr")
+    def fire_weapon(self):
+        if self.app_controller:
+            self.app_controller.send_command("fire_weapon")
 
-def fire_weapon(self):
-    if self.app_controller:
-        self.app_controller.send_command("fire_weapon")
-
-def calibrate(self):
-    if self.app_controller:
-        self.app_controller.send_command("calibrate_joystick")
+    def calibrate(self):
+        if self.app_controller:
+            self.app_controller.send_command("calibrate_joystick")
 
 class SkyShieldMainGUI:
     """Ana GUI sınıfı"""
@@ -1151,7 +1111,6 @@ class SkyShieldMainGUI:
 
         self.center_window()
         self.emergency_active = False
-        self.emergency_countdown = 15
 
         # -------- YENİ: AppController entegrasyonu + GERÇEK IP --------
        # raspberry_ip = "192.168.0.22"  # ✅ KENDİ IP'NİZİ YAZIN!
@@ -1355,12 +1314,25 @@ class SkyShieldMainGUI:
         self.log_module.pack(fill="both", expand=True, padx=10, pady=5)
 
     def start_system(self):
-        """Sistem başlat - AppController ile"""
-        # AppController'a komut gönder
+        """Sistem başlat - Acil durdur sonrası özel davranış"""
+        if self.emergency_active:
+            # ✅ YENİ: AppController'da emergency mode deaktif et
+            self.app_controller.set_emergency_mode(False)
+            
+            # Acil durdurdan çıkış
+            self.emergency_active = False
+            
+            # Tüm butonları tekrar aktif et
+            self._enable_all_buttons()
+            
+            # Durum güncelle
+            self.status_module.update_status("Sistem Yeniden Başlatıldı", "#00ff88")
+            self.log_module.add_log("✅ Acil durdurdan çıkıldı - Sistem normale döndü")
+        
+        # Normal sistem başlatma
         self.app_controller.send_command("start_system")
         self.app_controller.send_command("change_mode", self.phase)
         
-        # UI güncellemeleri callback'ler ile gelecek
         if hasattr(self, 'log_module'):
             self.log_module.add_log(f"Sistem başlatıldı - Aşama {self.phase}")
 
@@ -1373,6 +1345,35 @@ class SkyShieldMainGUI:
         if hasattr(self, 'log_module'):
             self.log_module.add_log("Sistem durduruldu")
 
+    def _stop_all_systems(self):
+        """Acil durdurma - Tüm sistemleri durdur ve veri akışını kes"""
+        try:
+            self.emergency_active = True  # Acil durum flag'i
+            
+            # Kamera modülünü durdur
+            if hasattr(self, 'camera_module'):
+                self.camera_module.stop_camera()
+            
+            # AppController'a acil durdur gönder
+            self.app_controller.send_command("emergency_stop")
+            
+            # ✅ YENİ: Raspberry Pi iletişimini tamamen durdur
+            if hasattr(self.app_controller, 'comm_manager'):
+                print("[EMERGENCY] Raspberry Pi iletişimi durduruluyor...")
+                self.app_controller.comm_manager.stop_communication()
+            
+            # ✅ YENİ: AppController'ı da durdur
+            if hasattr(self, 'app_controller'):
+                print("[EMERGENCY] AppController durduruluyor...")
+                self.app_controller.stop()
+            
+            # Log ekle
+            if hasattr(self, 'log_module'):
+                self.log_module.add_log("🛑 ACİL DURDUR - Tüm sistemler ve veri akışı durduruldu")
+            
+        except Exception as e:
+            print(f"[EMERGENCY] Sistem durdurma hatası: {e}")
+
     def emergency_stop(self):
         """Acil durdur - AppController ile"""
         # Acil durdur butonu titreme efekti
@@ -1384,15 +1385,15 @@ class SkyShieldMainGUI:
         # TÜM SİSTEMLERİ DURDUR
         self._stop_all_systems()
         
-        # Uyarı popup'ı oluştur
-        self.create_emergency_popup()
         
-        # 15 saniye geri sayım başlat
-        self.start_emergency_countdown()
+        
+        
 
     def _stop_all_systems(self):
-        """Acil durdurma - Tüm sistemleri durdur"""
+        """Acil durdurma - Tüm sistemleri durdur ve veri akışını kes"""
         try:
+            self.emergency_active = True  # Acil durum flag'i
+            
             # Kamera modülünü durdur
             if hasattr(self, 'camera_module'):
                 self.camera_module.stop_camera()
@@ -1402,7 +1403,7 @@ class SkyShieldMainGUI:
             
             # Log ekle
             if hasattr(self, 'log_module'):
-                self.log_module.add_log("🛑 ACİL DURDUR - Tüm sistemler durduruldu")
+                self.log_module.add_log("🛑 ACİL DURDUR - Tüm sistemler ve veri akışı durduruldu")
             
         except Exception as e:
             print(f"[EMERGENCY] Sistem durdurma hatası: {e}")
@@ -1469,12 +1470,32 @@ class SkyShieldMainGUI:
         )
         self.emergency_button.pack(padx=10, pady=10)
         
-    def create_emergency_popup(self):
-        """Acil durdur uyarı popup'ı"""
+    def emergency_stop(self):
+        """Acil durdur - YENİ VERSİYON"""
+        # ✅ YENİ: AppController'da emergency mode aktif et
+        self.app_controller.set_emergency_mode(True)
+        
+        # Acil durdur butonu titreme efekti
+        self.emergency_button.configure(fg_color="#ff0000", text="🚨 ACTİVE! 🚨")
+        
+        # AppController'a acil durdur komutu gönder
+        self.app_controller.send_command("emergency_stop")
+        
+        # TÜM SİSTEMLERİ DURDUR
+        self._stop_all_systems()
+        
+        # Basit uyarı popup'ı oluştur (geri sayım yok)
+        self.create_simple_emergency_popup()
+        
+        # TÜM BUTONLARI DEVRE DIŞI BIRAK (Sistem Başlat hariç)
+        self._disable_all_buttons_except_start()
+
+    def create_simple_emergency_popup(self):
+        """Basit acil durdur uyarı popup'ı (geri sayım yok)"""
         # Popup penceresi
         self.emergency_popup = ctk.CTkToplevel(self.root)
         self.emergency_popup.title("⚠️ ACİL DURDUR")
-        self.emergency_popup.geometry("400x250")
+        self.emergency_popup.geometry("400x200")
         self.emergency_popup.resizable(False, False)
         
         # Pencereyi üstte tut
@@ -1484,8 +1505,8 @@ class SkyShieldMainGUI:
         # Ortalama
         self.emergency_popup.update_idletasks()
         x = (self.emergency_popup.winfo_screenwidth() // 2) - (400 // 2)
-        y = (self.emergency_popup.winfo_screenheight() // 2) - (250 // 2)
-        self.emergency_popup.geometry(f"400x250+{x}+{y}")
+        y = (self.emergency_popup.winfo_screenheight() // 2) - (200 // 2)
+        self.emergency_popup.geometry(f"400x200+{x}+{y}")
         
         # Ana frame
         main_frame = ctk.CTkFrame(self.emergency_popup, fg_color="#cc0000")
@@ -1498,101 +1519,123 @@ class SkyShieldMainGUI:
             font=ctk.CTkFont(size=24, weight="bold"),
             text_color="#ffffff"
         )
-        warning_label.pack(pady=20)
+        warning_label.pack(pady=30)
         
         # Açıklama
         desc_label = ctk.CTkLabel(
             main_frame,
-            text="Sistem güvenlik protokolü aktivasyon!\nTüm operasyonlar durduruldu.",
+            text="Tüm operasyonlar durduruldu!\nSistemi yeniden başlatmak için \n 'SİSTEM BAŞLAT' butonunu kullanın.",
             font=ctk.CTkFont(size=14),
             text_color="#ffffff"
         )
-        desc_label.pack(pady=10)
+        desc_label.pack(pady=20)
         
-        # Geri sayım
-        self.countdown_label = ctk.CTkLabel(
+        # Tamam butonu
+        ok_button = ctk.CTkButton(
             main_frame,
-            text="Sistem 15 saniye içinde kapanacak...",
-            font=ctk.CTkFont(size=16, weight="bold"),
-            text_color="#ffff00"
-        )
-        self.countdown_label.pack(pady=20)
-        
-        # İptal butonu
-        cancel_button = ctk.CTkButton(
-            main_frame,
-            text="İPTAL ET",
-            command=self.cancel_emergency,
+            text="TAMAM",
+            command=self.close_emergency_popup,
             fg_color="#ffffff",
             text_color="#cc0000",
             hover_color="#f0f0f0",
             width=100,
             height=35
         )
-        cancel_button.pack(pady=10)
-    
-    def start_emergency_countdown(self):
-        """15 saniye geri sayım"""
-        self.emergency_countdown = 15
-        self.emergency_active = True
-        self.update_countdown()
-    
-    def update_countdown(self):
-        """Geri sayım güncellemesi"""
-        if hasattr(self, 'emergency_active') and self.emergency_active:
-            if self.emergency_countdown > 0:
-                # Countdown labelını güncelle
-                if hasattr(self, 'countdown_label'):
-                    self.countdown_label.configure(
-                        text=f"Sistem {self.emergency_countdown} saniye içinde kapanacak..."
-                    )
-                
-                # Emergency butonu yanıp sönme efekti
-                if self.emergency_countdown % 2 == 0:
-                    self.emergency_button.configure(fg_color="#ff0000", text="🚨 ACTİVE! 🚨")
-                else:
-                    self.emergency_button.configure(fg_color="#990000", text="⚠️ DURDUR ⚠️")
-                
-                # Log güncelleme
-                self.log_module.add_log(f"⏰ Kapanmaya {self.emergency_countdown} saniye...")
-                
-                self.emergency_countdown -= 1
-                
-                # 1 saniye sonra tekrar çağır
-                self.root.after(1000, self.update_countdown)
-            else:
-                # Sistem kapanması
-                self.log_module.add_log("🔴 SİSTEM KAPATILIYOR...")
-                self.root.after(1000, self.force_close)
-    
-    def cancel_emergency(self):
-        """Acil durduru iptal et"""
-        self.emergency_active = False
-        
-        # Popup'ı kapat
+        ok_button.pack(pady=10)
+
+    def close_emergency_popup(self):
+        """Emergency popup'ını kapat"""
         if hasattr(self, 'emergency_popup'):
             self.emergency_popup.destroy()
-        
-        # Butonu normale döndür
-        self.emergency_button.configure(
-            fg_color="#cc0000",
-            text="ACİL DURDUR"
-        )
-        
-        # SİSTEMLERİ YENİDEN BAŞLAT
-        self._restart_all_systems()
-        
-        # Sistem durumunu güncelle
-        self.status_module.update_status("Sistem Hazır", "#00ff88")
-        self.log_module.add_log("✅ Acil durdur iptal edildi - Sistem normale döndü")
-    
-    def force_close(self):
-        """Zorla kapat"""
+
+    def _disable_all_buttons_except_start(self):
+        """Sistem başlat hariç tüm butonları devre dışı bırak"""
         try:
-            self.root.quit()
-            self.root.destroy()
-        except:
-            pass
+            # Sağ panel kontrol butonları
+            if hasattr(self, 'control_module'):
+                # Ateş butonu
+                if hasattr(self.control_module, 'fire_button'):
+                    self.control_module.fire_button.configure(state="disabled")
+                
+                # Otomatik butonlar
+                if hasattr(self.control_module, 'auto_button'):
+                    self.control_module.auto_button.configure(state="disabled")
+            
+            # Mühimmat sistemi butonları
+            if hasattr(self, 'weapon_module'):
+                if hasattr(self.weapon_module, 'control_mode_selector'):
+                    self.weapon_module.control_mode_selector.configure(state="disabled")
+                if hasattr(self.weapon_module, 'laser_status_btn'):
+                    self.weapon_module.laser_status_btn.configure(state="disabled")
+                if hasattr(self.weapon_module, 'pellet_status_btn'):
+                    self.weapon_module.pellet_status_btn.configure(state="disabled")
+            
+            # Kamera kontrolleri
+            if hasattr(self, 'camera_module'):
+                if hasattr(self.camera_module, 'record_button'):
+                    self.camera_module.record_button.configure(state="disabled")
+                if hasattr(self.camera_module, 'snapshot_button'):
+                    self.camera_module.snapshot_button.configure(state="disabled")
+                if hasattr(self.camera_module, 'lock_button'):
+                    self.camera_module.lock_button.configure(state="disabled")
+            
+            # Sistem durdur butonunu devre dışı bırak
+            if hasattr(self, 'stop_button'):
+                self.stop_button.configure(state="disabled")
+            
+            # Acil durdur butonunu devre dışı bırak (tekrar basılmasın)
+            self.emergency_button.configure(state="disabled")
+            
+            # Durum güncelle
+            self.status_module.update_status("SİSTEM DURDURULDU", "#ff0000")
+            self.log_module.add_log("🔒 Tüm kontroller devre dışı bırakıldı")
+            
+        except Exception as e:
+            print(f"[EMERGENCY] Buton devre dışı bırakma hatası: {e}")
+
+    def _enable_all_buttons(self):
+        """Tüm butonları tekrar aktif et"""
+        try:
+            # Sağ panel kontrol butonları
+            if hasattr(self, 'control_module'):
+                if hasattr(self.control_module, 'fire_button'):
+                    self.control_module.fire_button.configure(state="normal")
+                if hasattr(self.control_module, 'auto_button'):
+                    self.control_module.auto_button.configure(state="normal")
+            
+            # Mühimmat sistemi butonları
+            if hasattr(self, 'weapon_module'):
+                if hasattr(self.weapon_module, 'control_mode_selector'):
+                    self.weapon_module.control_mode_selector.configure(state="normal")
+                if hasattr(self.weapon_module, 'laser_status_btn'):
+                    self.weapon_module.laser_status_btn.configure(state="normal")
+                if hasattr(self.weapon_module, 'pellet_status_btn'):
+                    self.weapon_module.pellet_status_btn.configure(state="normal")
+            
+            # Kamera kontrolleri
+            if hasattr(self, 'camera_module'):
+                if hasattr(self.camera_module, 'record_button'):
+                    self.camera_module.record_button.configure(state="normal")
+                if hasattr(self.camera_module, 'snapshot_button'):
+                    self.camera_module.snapshot_button.configure(state="normal")
+                if hasattr(self.camera_module, 'lock_button'):
+                    self.camera_module.lock_button.configure(state="normal")
+            
+            # Sistem durdur butonunu aktif et
+            if hasattr(self, 'stop_button'):
+                self.stop_button.configure(state="normal")
+            
+            # Acil durdur butonunu normale döndür
+            self.emergency_button.configure(
+                state="normal",
+                fg_color="#cc0000",
+                text="ACİL DURDUR"
+            )
+            
+            self.log_module.add_log("🔓 Tüm kontroller yeniden aktif edildi")
+            
+        except Exception as e:
+            print(f"[RESTART] Buton aktifleştirme hatası: {e}")
         
     def _return_to_menu(self):
         """Ana menüye dön"""
@@ -1652,10 +1695,11 @@ class SkyShieldMainGUI:
     def _safe_update_gui(self, data):
         """Thread-safe GUI güncellemesi"""
         try:
+            print(f"[DEBUG] GUI'ye gelen veri: {data}")  # BU SATIRI EKLE
+
             if hasattr(self, 'coords_module') and data:
                 if 'pan_angle' in data and 'tilt_angle' in data:
                     self.coords_module.update_coordinates(
-                        distance=data.get('distance', '--'),
                         pan=f"{data['pan_angle']:.1f}",
                         tilt=f"{data['tilt_angle']:.1f}",
                         speed=data.get('speed', '--')

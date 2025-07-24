@@ -25,6 +25,9 @@ class TestWebSocketServer:
         self.shared_data = {
             # Sistem durumu
             "system_mode": -1,
+            "phase_mode": -1,
+            "system_active": False,     # YENİ EKLENEN - EKSIK OLAN BU!
+
             "target_destroyed_flag": False,
             "scanning_target_flag": False,
             
@@ -125,23 +128,27 @@ class TestWebSocketServer:
     
     async def send_state_updates(self, websocket):
         """Sürekli sistem durumunu gönder"""
-        logging.info("📡 Durum güncellemeleri başlatıldı (10 Hz)")
+        logging.info("📡 Durum güncellemeleri başlatıldı (30 saniyede 1)")
         previous_state = None
         
         while True:
             try:
                 # Aktif sistemde simülasyon yap
-                if self.shared_data["system_mode"] > 0:
+                if self.shared_data["system_active"]:  # system_mode yerine system_active
                     self.update_simulation()
                 
                 # Durumu hazırla
                 state = self.shared_data.copy()
+                
+                # YENİ: Ayrı alanlar ekle
+                state["current_phase"] = self.shared_data["phase_mode"]     # Aşama bilgisi
+                state["system_status"] = self.shared_data["system_active"]  # Sistem durumu
                 state["timestamp"] = datetime.now().isoformat()
                 state["server_uptime"] = time.time() - self.start_time
                 
                 # Değişiklik kontrolü (timestamp hariç)
                 state_without_timestamp = {k: v for k, v in state.items() 
-                                         if k not in ["timestamp", "server_uptime"]}
+                                        if k not in ["timestamp", "server_uptime"]}
                 
                 if previous_state != state_without_timestamp:
                     # Değişen alanları bul
@@ -162,7 +169,7 @@ class TestWebSocketServer:
                     previous_state = state_without_timestamp.copy()
                 
                 await websocket.send(json.dumps(state))
-                await asyncio.sleep(0.1)  # 10 Hz
+                await asyncio.sleep(30.0)  # 30 saniyede bir gönder
                 
             except websockets.exceptions.ConnectionClosed:
                 logging.info("📡 Durum güncellemeleri durduruldu (bağlantı kesildi)")
@@ -170,7 +177,6 @@ class TestWebSocketServer:
             except Exception as e:
                 logging.error(f"❌ Durum gönderme hatası: {e}")
                 break
-    
     def process_command(self, data):
         """Gelen komutları işle"""
         changes = []
@@ -193,6 +199,26 @@ class TestWebSocketServer:
                     self.shared_data[key] = value
                 
                 changes.append(f"{key}: {old_value} → {self.shared_data[key]}")
+            
+            # YENİ: Özel komut işlemleri
+            elif key == "change_phase":  # GUI'den aşama değişikliği
+                old_phase = self.shared_data["phase_mode"]
+                self.shared_data["phase_mode"] = int(value)
+                changes.append(f"phase_mode: {old_phase} → {self.shared_data['phase_mode']}")
+                logging.info(f"📡 Aşama değişti: {old_phase} → {value}")
+            
+            elif key == "start_system":  # Sistem başlatma
+                self.shared_data["system_active"] = True
+                self.shared_data["system_mode"] = 1
+                changes.append(f"system_active: False → True")
+                logging.info(f"🚀 Sistem başlatıldı")
+            
+            elif key == "stop_system":  # Sistem durdurma
+                self.shared_data["system_active"] = False
+                self.shared_data["system_mode"] = 0
+                changes.append(f"system_active: True → False")
+                logging.info(f"⏸️ Sistem durduruldu")
+            
             else:
                 logging.warning(f"⚠️ Bilinmeyen alan: {key}")
         
@@ -240,16 +266,16 @@ class TestWebSocketServer:
         import random
         
         # Hedef hareket simülasyonu
-        self.shared_data["x_target"] += random.randint(-5, 5)
-        self.shared_data["y_target"] += random.randint(-5, 5)
+        self.shared_data["x_target"] += random.randint(-50, 50)
+        self.shared_data["y_target"] += random.randint(-50, 50)
         
         # Sınırlar içinde tut
         self.shared_data["x_target"] = max(50, min(590, self.shared_data["x_target"]))
         self.shared_data["y_target"] = max(50, min(430, self.shared_data["y_target"]))
         
         # Motor açıları
-        self.shared_data["global_angle"] += random.uniform(-2, 2)
-        self.shared_data["global_tilt_angle"] += random.uniform(-1, 1)
+        self.shared_data["global_angle"] += random.uniform(-30, 30)
+        self.shared_data["global_tilt_angle"] += random.uniform(-15, 15)
         
         # Sınırlar
         self.shared_data["global_angle"] = max(-180, min(180, self.shared_data["global_angle"]))
@@ -257,12 +283,13 @@ class TestWebSocketServer:
         
         # Hedef tespit simülasyonu
         if self.shared_data["scanning_target_flag"]:
-            self.shared_data["target_detected_flag"] = random.choice([True, False, False])  # %33 şans
+            self.shared_data["target_detected_flag"] = random.choice([True, False])
             if self.shared_data["target_detected_flag"]:
                 self.shared_data["weapon"] = random.choice(["L", "A"])
             else:
                 self.shared_data["weapon"] = "E"
-    
+        
+        print(f"[SIMULATION] Yeni değerler: Pan={self.shared_data['global_angle']:.1f}°, Tilt={self.shared_data['global_tilt_angle']:.1f}°, Aşama={self.shared_data['phase_mode']}")
     async def start_server(self):
         """WebSocket server'ı başlat"""
         logging.info("🚀 Test WebSocket Server Başlatılıyor...")

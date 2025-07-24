@@ -86,7 +86,7 @@ class AppController:
         # İletişim kuyruğu (legacy support için)
         self.command_queue = queue.Queue()
         self.status_queue = queue.Queue()
-        
+        self.emergency_mode = False
         # Sistem durumu
         self.state = SystemState()
         
@@ -117,7 +117,12 @@ class AppController:
         self._setup_communication_callbacks()
         
         print("[APP CONTROLLER] HTTP Communication ile oluşturuldu")
-    
+
+    def set_emergency_mode(self, emergency: bool):
+        """Acil durum modunu ayarla"""
+        self.emergency_mode = emergency
+        print(f"[APP CONTROLLER] Emergency mode: {emergency}")
+
     def _setup_communication_callbacks(self):
         """Communication Manager callback'lerini kur"""
         self.comm_manager.register_data_callback(self._on_raspberry_data_received)
@@ -273,23 +278,27 @@ class AppController:
         raspberry_data = {}
 
         if command == "change_mode":
+            # Aşama değişikliği için farklı alan kullan
             try:
                 mode = data.value if isinstance(data, SystemMode) else int(data)
-                raspberry_data["system_mode"] = mode
+                raspberry_data["change_phase"] = mode  # system_mode yerine change_phase
+                print(f"[COMMAND] Aşama değişikliği: {mode}")
             except (ValueError, TypeError):
                 pass
 
         elif command == "start_system":
-                pass
+            raspberry_data["start_system"] = True  # Sistem başlatma komutu
+
         elif command == "stop_system":
-            raspberry_data["system_mode"] = -1
+            raspberry_data["stop_system"] = True  # Sistem durdurma komutu
 
         elif command == "emergency_stop":
-            raspberry_data["system_mode"] = -1
+            raspberry_data["system_mode"] = True # Acil durdur için hala system_mode kullan
 
         elif command == "fire_weapon":
             raspberry_data["fire_gui_flag"] = True
             raspberry_data["engagement_started_flag"] = True
+
 
         elif command == "start_scan":
             raspberry_data["scanning_target_flag"] = True  # ← bu shared_memory'de varsa etkili olur
@@ -313,18 +322,52 @@ class AppController:
                 raspberry_data["y_target"] = int(data["y"])
 
         return raspberry_data if raspberry_data else None
+    
+
+    
+    def _get_mode_name(self, mode: int) -> str:
+        """Mod numarasını isme çevir"""
+        mode_names = {
+            0: "MANUEL", 
+            1: "AŞAMA 1",
+            2: "AŞAMA 2",
+            3: "AŞAMA 3"
+        }
+        return mode_names.get(mode, f"MOD {mode}")
 
 
     
     def _on_raspberry_data_received(self, data: Dict[str, Any]):
         """Raspberry Pi'den veri alındığında"""
         try:
+            # ✅ YENİ: Emergency modda veri işleme
+            if self.emergency_mode:
+                print("[APP CONTROLLER] Emergency mode aktif - veri işlenmiyor")
+                return
+            
+            # Normal veri işleme
             gui_data = self._convert_raspberry_data_to_gui_format(data)
             self.update_target_data(gui_data)
             self.stats['updates_received'] += 1
             self.add_log(f"Raspberry'den veri alındı", "DEBUG")
+            
         except Exception as e:
             self.add_log(f"Raspberry veri işleme hatası: {e}", "ERROR")
+
+    def _on_frame_received(self, frame):
+        """Raspberry Pi'den frame alındığında"""
+        try:
+            # ✅ YENİ: Emergency modda frame işleme
+            if self.emergency_mode:
+                print("[APP CONTROLLER] Emergency mode aktif - frame işlenmiyor")
+                return
+            
+            # Normal frame işleme
+            self.stats['frames_received'] += 1
+            self.trigger_event("frame_received", frame)
+            
+        except Exception as e:
+            self.add_log(f"Frame işleme hatası: {e}", "ERROR")
     
     def _on_raspberry_frame_received(self, frame):
         """Raspberry Pi'den frame alındığında"""
@@ -356,59 +399,61 @@ class AppController:
         self.add_log(f"Raspberry Pi hatası: {error_message}", "ERROR")
         self.trigger_event("raspberry_error", error_message)
     
+   
     def _convert_raspberry_data_to_gui_format(self, raspberry_data: Dict[str, Any]) -> Dict[str, Any]:
-        """WebSocket'tan gelen Raspberry formatını GUI formatına çevir"""
+        """Raspberry Pi formatını GUI formatına çevir - SADECE FLAG'LER"""
         gui_data = {}
         
-        # Sistem durumu
-        if 'system_mode' in raspberry_data:
-            mode = raspberry_data['system_mode']
-            gui_data['mode'] = mode
-            gui_data['active'] = mode != -1
-            gui_data['system_active'] = mode != -1
+        try:
+            # YENİ: Sadece flag'lerle çalış
+            if 'system_active' in raspberry_data:
+                gui_data['system_active'] = raspberry_data['system_active']
+                gui_data['active'] = raspberry_data['system_active']
             
-            # Mod isimleri
-            mode_names = {-1: "DURDUR", 0: "MANUEL", 1: "AŞAMA 1", 2: "AŞAMA 2", 3: "AŞAMA 3"}
-            gui_data['mode_name'] = mode_names.get(mode, f"MOD {mode}")
-        
-        # Hedef bilgileri
-        if 'target_detected_flag' in raspberry_data:
-            gui_data['target_locked'] = raspberry_data['target_detected_flag']
-        if 'x_target' in raspberry_data:
-            gui_data['target_x'] = float(raspberry_data['x_target'])
-        if 'y_target' in raspberry_data:
-            gui_data['target_y'] = float(raspberry_data['y_target'])
-        
-        # Açı bilgileri
-        if 'global_angle' in raspberry_data:
-            gui_data['pan_angle'] = float(raspberry_data['global_angle'])
-        if 'global_tilt_angle' in raspberry_data:
-            gui_data['tilt_angle'] = float(raspberry_data['global_tilt_angle'])
-        
-        # Mühimmat
-        if 'weapon' in raspberry_data:
-            weapon_map = {'L': 'Laser', 'A': 'Airgun', 'E': 'None'}
-            gui_data['weapon'] = weapon_map.get(raspberry_data['weapon'], 'Auto')
-        
-        # Durum bayrakları
-        if 'scanning_target_flag' in raspberry_data:
-            gui_data['scanning'] = raspberry_data['scanning_target_flag']
-        if 'target_destroyed_flag' in raspberry_data:
-            gui_data['target_destroyed'] = raspberry_data['target_destroyed_flag']
-        if 'target_side' in raspberry_data:
-            gui_data['target_side'] = raspberry_data['target_side']
-        
-        # Hesaplanan veriler
-        if gui_data.get('target_x') and gui_data.get('target_y'):
-            # Basit mesafe hesaplama (merkeze göre)
-            import math
-            center_x, center_y = 320, 240
-            dx = gui_data['target_x'] - center_x
-            dy = gui_data['target_y'] - center_y
-            gui_data['distance'] = math.sqrt(dx*dx + dy*dy) * 0.5  # Piksel → metre yaklaşımı
-            gui_data['speed'] = 0.0  # WebSocket'tan gelmediği için 0
+            if 'phase_mode' in raspberry_data:
+                gui_data['mode'] = raspberry_data['phase_mode']
+                gui_data['mode_name'] = self._get_mode_name(raspberry_data['phase_mode'])
+            
+            # Hedef bilgileri
+            if 'target_detected_flag' in raspberry_data:
+                gui_data['target_locked'] = raspberry_data['target_detected_flag']
+            if 'x_target' in raspberry_data:
+                gui_data['target_x'] = float(raspberry_data['x_target'])
+            if 'y_target' in raspberry_data:
+                gui_data['target_y'] = float(raspberry_data['y_target'])
+            
+            # Açı bilgileri - PAN/TILT DOĞRUDAN
+            if 'pan_angle' in raspberry_data:
+                gui_data['pan_angle'] = float(raspberry_data['pan_angle'])
+            if 'tilt_angle' in raspberry_data:
+                gui_data['tilt_angle'] = float(raspberry_data['tilt_angle'])
+            
+            # ESKI global_angle formatı da destekle (geçiş için)
+            if 'global_angle' in raspberry_data:
+                gui_data['pan_angle'] = float(raspberry_data['global_angle'])
+            if 'global_tilt_angle' in raspberry_data:
+                gui_data['tilt_angle'] = float(raspberry_data['global_tilt_angle'])
+            
+            # Mühimmat
+            if 'weapon' in raspberry_data:
+                weapon_map = {'L': 'Laser', 'A': 'Airgun', 'E': 'None', 'None': 'Auto'}
+                gui_data['weapon'] = weapon_map.get(raspberry_data['weapon'], 'Auto')
+            
+            # Durum bayrakları
+            if 'scanning_target_flag' in raspberry_data:
+                gui_data['scanning'] = raspberry_data['scanning_target_flag']
+            if 'target_destroyed_flag' in raspberry_data:
+                gui_data['target_destroyed'] = raspberry_data['target_destroyed_flag']
+            if 'target_side' in raspberry_data:
+                gui_data['target_side'] = raspberry_data['target_side']
+            
+            print(f"[DEBUG] Final GUI verisi: {gui_data}")
+            
+        except Exception as e:
+            print(f"[WS CLIENT] Veri dönüştürme hatası: {e}")
         
         return gui_data
+   
     def register_callback(self, event: str, callback: Callable) -> None:
         """Olay dinleyicisi kaydet"""
         if event not in self.callbacks:
