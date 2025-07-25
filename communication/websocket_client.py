@@ -258,74 +258,92 @@ class WebSocketCommunicationClient:
             return False
     
     def _convert_raspberry_to_gui_format(self, raspberry_data: Dict[str, Any]) -> Dict[str, Any]:
-        """Raspberry Pi formatını GUI formatına çevir"""
+        """Raspberry Pi formatını GUI formatına çevir - PHASE-SPECIFIC VARIABLES ADDED"""
         gui_data = {}
         
         try:
-            # Sistem durumu
-            if 'system_mode' in raspberry_data:
-                mode = raspberry_data['system_mode']
-                gui_data['mode'] = mode
-                gui_data['mode_name'] = self._get_mode_name(mode)
-                gui_data['active'] = mode != -1
-                gui_data['system_active'] = mode != -1
+            # ========== MEVCUT ORTAK VERİLER ==========
+            if 'system_active' in raspberry_data:
+                gui_data['system_active'] = raspberry_data['system_active']
+                gui_data['active'] = raspberry_data['system_active']
+            
+            if 'phase_mode' in raspberry_data:
+                gui_data['mode'] = raspberry_data['phase_mode']
+                gui_data['mode_name'] = self._get_mode_name(raspberry_data['phase_mode'])
             
             # Hedef bilgileri
             if 'target_detected_flag' in raspberry_data:
                 gui_data['target_locked'] = raspberry_data['target_detected_flag']
-            
             if 'x_target' in raspberry_data:
                 gui_data['target_x'] = float(raspberry_data['x_target'])
-            
             if 'y_target' in raspberry_data:
                 gui_data['target_y'] = float(raspberry_data['y_target'])
             
             # Açı bilgileri
+            if 'pan_angle' in raspberry_data:
+                gui_data['pan_angle'] = float(raspberry_data['pan_angle'])
+            if 'tilt_angle' in raspberry_data:
+                gui_data['tilt_angle'] = float(raspberry_data['tilt_angle'])
+            
+            # ESKI global_angle formatı da destekle
             if 'global_angle' in raspberry_data:
                 gui_data['pan_angle'] = float(raspberry_data['global_angle'])
-            
             if 'global_tilt_angle' in raspberry_data:
                 gui_data['tilt_angle'] = float(raspberry_data['global_tilt_angle'])
             
-            # Mühimmat dönüştürme
+            # Mühimmat
             if 'weapon' in raspberry_data:
-                weapon_map = {
-                    'L': 'Laser',
-                    'A': 'Airgun', 
-                    'E': 'None'
-                }
+                weapon_map = {'L': 'Laser', 'A': 'Airgun', 'E': 'None', 'None': 'Auto'}
                 gui_data['weapon'] = weapon_map.get(raspberry_data['weapon'], 'Auto')
             
             # Durum bayrakları
             if 'scanning_target_flag' in raspberry_data:
                 gui_data['scanning'] = raspberry_data['scanning_target_flag']
-            
             if 'target_destroyed_flag' in raspberry_data:
                 gui_data['target_destroyed'] = raspberry_data['target_destroyed_flag']
-            
-            # Hedef tarafı
             if 'target_side' in raspberry_data:
                 gui_data['target_side'] = raspberry_data['target_side']
             if 'controller_connected' in raspberry_data:
                 gui_data['controller_connected'] = bool(raspberry_data['controller_connected'])
-                print(f"[DEBUG] Controller verisi alındı: {raspberry_data['controller_connected']} (bool: {gui_data['controller_connected']})")
-            else:
-                gui_data['controller_connected'] = False
-                print(f"[DEBUG] Controller verisi eksik, varsayılan: False")
-
-                # Hesaplanmış veriler
-            gui_data['last_update'] = datetime.now().strftime("%H:%M:%S")
             
-            # Dummy veriler (simülasyon için)
-            gui_data['distance'] = 0.0
-            gui_data['speed'] = 0.0
-            gui_data['confidence'] = 95.0 if gui_data.get('target_locked') else 0.0
+            # ========== YENİ: AŞAMA-SPESİFİK VERİLER ==========
+            
+            # AŞAMA 1 VERİLERİ
+            if 'targets_detected' in raspberry_data:
+                gui_data['targets_detected'] = int(raspberry_data['targets_detected'])
+            if 'targets_destroyed' in raspberry_data:
+                gui_data['targets_destroyed'] = int(raspberry_data['targets_destroyed'])
+            if 'balloon_count' in raspberry_data:
+                gui_data['balloon_count'] = int(raspberry_data['balloon_count'])
+            
+            # AŞAMA 2 VERİLERİ
+            if 'friend_targets' in raspberry_data:
+                gui_data['friend_targets'] = int(raspberry_data['friend_targets'])
+            if 'enemy_targets' in raspberry_data:
+                gui_data['enemy_targets'] = int(raspberry_data['enemy_targets'])
+            if 'enemy_destroyed' in raspberry_data:
+                gui_data['enemy_destroyed'] = int(raspberry_data['enemy_destroyed'])
+            if 'classification_accuracy' in raspberry_data:
+                gui_data['classification_accuracy'] = float(raspberry_data['classification_accuracy'])
+            
+            # AŞAMA 3 VERİLERİ
+            if 'target_color' in raspberry_data:
+                gui_data['target_color'] = str(raspberry_data['target_color'])
+            if 'target_shape' in raspberry_data:
+                gui_data['target_shape'] = str(raspberry_data['target_shape'])
+            if 'current_platform' in raspberry_data:
+                gui_data['current_platform'] = str(raspberry_data['current_platform'])
+            if 'qr_code_detected' in raspberry_data:
+                gui_data['qr_code_detected'] = bool(raspberry_data['qr_code_detected'])
+            if 'engagement_authorized' in raspberry_data:
+                gui_data['engagement_authorized'] = bool(raspberry_data['engagement_authorized'])
+            
+            print(f"[DEBUG] Final GUI verisi (phase-specific added): {gui_data}")
             
         except Exception as e:
             print(f"[WS CLIENT] Veri dönüştürme hatası: {e}")
         
         return gui_data
-    
     def _get_mode_name(self, mode: int) -> str:
         """Mod numarasını isme çevir"""
         mode_names = {

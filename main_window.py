@@ -260,11 +260,18 @@ class SystemStatusModule(BaseModule):
     def update_progress(self, value):
         self.progress.set(value)
 
+
+
+
 class TargetInfoModule(BaseModule):
-    """Hedef bilgileri modülü"""
+    """Hedef bilgileri modülü - PHASE-SPECIFIC DYNAMIC DATA"""
     def __init__(self, parent, phase):
         super().__init__(parent, "HEDEF BİLGİLERİ")
         self.phase = phase
+        
+        # Dinamik label'ları saklamak için
+        self.dynamic_labels = {}
+        
         self.setup_module()
         
     def setup_module(self):
@@ -272,7 +279,6 @@ class TargetInfoModule(BaseModule):
         
         if self.phase == 0:  
             self.create_manual_mode_info()
-        # Aşamaya göre özel bilgiler
         elif self.phase == 1:
             self.create_phase1_info()
         elif self.phase == 2:
@@ -284,9 +290,9 @@ class TargetInfoModule(BaseModule):
         """Aşama 0: Manuel mod bilgileri"""
         self.controller_status = ctk.CTkLabel(
             self.frame,
-            text="🎮 Controller: Kontrol Ediliyor...",  # ✅ Başlangıç metni değişti
+            text="🎮 Controller: Kontrol Ediliyor...",
             font=ctk.CTkFont(size=12),
-            text_color="#ffaa00"  # ✅ Sarı renk (kontrol ediliyor)
+            text_color="#ffaa00"
         )
         self.controller_status.pack(pady=2)
         
@@ -297,92 +303,258 @@ class TargetInfoModule(BaseModule):
             text_color="#00ccff"
         )
         self.control_mode.pack(pady=2)
-    def update_controller_status(self, data):
-            """Controller bağlantı durumunu güncelle - Sadece Aşama 0 için"""
-            if self.phase != 0:  # Sadece manuel modda çalışır
-                return
-            
-            # Controller verisi kontrol et
-            if data.get('controller_connected')is True:
-                self.controller_status.configure(
-                    text="🎮 Controller: Bağlı",
-                    text_color="#00ff88"  # Yeşil = bağlı
-                )
-                print("[TARGET MODULE] Controller durumu güncellendi: Bağlı")
-            else:
-                self.controller_status.configure(
-                    text="🎮 Controller: Bağlı Değil", 
-                    text_color="#ff6b6b"  # Kırmızı = bağlı değil
-                )
-                print("[TARGET MODULE] Controller durumu güncellendi: Bağlı Değil")
-            
+    
     def create_phase1_info(self):
-        """Aşama 1: Temel hedef bilgileri"""
-        self.target_count_label = ctk.CTkLabel(
+        """Aşama 1: Dinamik balon bilgileri"""
+        # Tespit Edilen Balonlar
+        self.dynamic_labels['targets_detected'] = ctk.CTkLabel(
             self.frame,
             text="Tespit Edilen Balon: 0",
             font=ctk.CTkFont(size=12)
         )
-        self.target_count_label.pack(pady=2)
+        self.dynamic_labels['targets_detected'].pack(pady=2)
         
-        self.destroyed_label = ctk.CTkLabel(
+        # İmha Edilen Balonlar
+        self.dynamic_labels['targets_destroyed'] = ctk.CTkLabel(
             self.frame,
             text="İmha Edilen: 0",
             font=ctk.CTkFont(size=12),
             text_color="#00ff88"
         )
-        self.destroyed_label.pack(pady=2)
+        self.dynamic_labels['targets_destroyed'].pack(pady=2)
+        
+        # Aktif Balon Sayısı
+        self.dynamic_labels['balloon_count'] = ctk.CTkLabel(
+            self.frame,
+            text="Aktif Balon: 0",
+            font=ctk.CTkFont(size=12),
+            text_color="#ffaa00"
+        )
+        self.dynamic_labels['balloon_count'].pack(pady=2)
+        
+        # Başarı Oranı (hesaplanacak)
+        self.dynamic_labels['success_rate'] = ctk.CTkLabel(
+            self.frame,
+            text="Başarı Oranı: 0%",
+            font=ctk.CTkFont(size=12),
+            text_color="#00ccff"
+        )
+        self.dynamic_labels['success_rate'].pack(pady=2)
         
     def create_phase2_info(self):
-        """Aşama 2: Düşman/Dost ayrımı"""
-        self.friend_label = ctk.CTkLabel(
+        """Aşama 2: Dinamik düşman/dost ayrımı bilgileri"""
+        # Dost Hedefler
+        self.dynamic_labels['friend_targets'] = ctk.CTkLabel(
             self.frame,
             text="Dost Hedef: 0",
             font=ctk.CTkFont(size=12),
             text_color="#00ff88"
         )
-        self.friend_label.pack(pady=2)
+        self.dynamic_labels['friend_targets'].pack(pady=2)
         
-        self.enemy_label = ctk.CTkLabel(
+        # Düşman Hedefler  
+        self.dynamic_labels['enemy_targets'] = ctk.CTkLabel(
             self.frame,
             text="Düşman Hedef: 0",
             font=ctk.CTkFont(size=12),
             text_color="#ff4444"
         )
-        self.enemy_label.pack(pady=2)
+        self.dynamic_labels['enemy_targets'].pack(pady=2)
         
-        self.destroyed_label = ctk.CTkLabel(
+        # İmha Edilen Düşman
+        self.dynamic_labels['enemy_destroyed'] = ctk.CTkLabel(
             self.frame,
             text="İmha Edilen Düşman: 0",
             font=ctk.CTkFont(size=12),
             text_color="#ffaa00"
         )
-        self.destroyed_label.pack(pady=2)
+        self.dynamic_labels['enemy_destroyed'].pack(pady=2)
+        
+        # Sınıflandırma Doğruluğu
+        self.dynamic_labels['classification_accuracy'] = ctk.CTkLabel(
+            self.frame,
+            text="Tanıma Doğruluğu: 0%",
+            font=ctk.CTkFont(size=12),
+            text_color="#00ccff"
+        )
+        self.dynamic_labels['classification_accuracy'].pack(pady=2)
         
     def create_phase3_info(self):
-        """Aşama 3: QR kod ve angajman bilgileri"""
-        
-        self.target_color_label = ctk.CTkLabel(
+        """Aşama 3: Dinamik QR kod ve angajman bilgileri"""
+        # Hedef Renk
+        self.dynamic_labels['target_color'] = ctk.CTkLabel(
             self.frame,
-            text="Hedef Renk: --",
+            text="Hedef Renk: Bilinmiyor",
             font=ctk.CTkFont(size=12)
         )
-        self.target_color_label.pack(pady=2)
+        self.dynamic_labels['target_color'].pack(pady=2)
         
-        self.target_shape_label = ctk.CTkLabel(
+        # Hedef Şekil
+        self.dynamic_labels['target_shape'] = ctk.CTkLabel(
             self.frame,
-            text="Hedef Şekil: --",
+            text="Hedef Şekil: Bilinmiyor",
             font=ctk.CTkFont(size=12)
         )
-        self.target_shape_label.pack(pady=2)
+        self.dynamic_labels['target_shape'].pack(pady=2)
         
-        self.platform_label = ctk.CTkLabel(
+        # Mevcut Platform
+        self.dynamic_labels['current_platform'] = ctk.CTkLabel(
             self.frame,
             text="Platform: A",
             font=ctk.CTkFont(size=12),
             text_color="#00ccff"
         )
-        self.platform_label.pack(pady=2)
+        self.dynamic_labels['current_platform'].pack(pady=2)
+        
+        # QR Kod Durumu
+        self.dynamic_labels['qr_code_detected'] = ctk.CTkLabel(
+            self.frame,
+            text="QR Kod: Tespit Edilmedi",
+            font=ctk.CTkFont(size=12),
+            text_color="#ff6b6b"
+        )
+        self.dynamic_labels['qr_code_detected'].pack(pady=2)
+        
+        # Angajman Durumu
+        self.dynamic_labels['engagement_authorized'] = ctk.CTkLabel(
+            self.frame,
+            text="Angajman: Yetkisiz",
+            font=ctk.CTkFont(size=12),
+            text_color="#ff6b6b"
+        )
+        self.dynamic_labels['engagement_authorized'].pack(pady=2)
+
+    def update_controller_status(self, data):
+        """Controller bağlantı durumunu güncelle - Sadece Aşama 0 için"""
+        if self.phase != 0:
+            return
+        
+        if data.get('controller_connected') is True:
+            self.controller_status.configure(
+                text="🎮 Controller: Bağlı",
+                text_color="#00ff88"
+            )
+        else:
+            self.controller_status.configure(
+                text="🎮 Controller: Bağlı Değil", 
+                text_color="#ff6b6b"
+            )
+    
+    def update_phase_data(self, data):
+        """Aşama-spesifik verileri güncelle - YENİ METOD"""
+        
+        if self.phase == 1:
+            # AŞAMA 1 GÜNCELLEMELERİ
+            if 'targets_detected' in data:
+                self.dynamic_labels['targets_detected'].configure(
+                    text=f"Tespit Edilen Balon: {data['targets_detected']}"
+                )
+            
+            if 'targets_destroyed' in data:
+                self.dynamic_labels['targets_destroyed'].configure(
+                    text=f"İmha Edilen: {data['targets_destroyed']}"
+                )
+            
+            if 'balloon_count' in data:
+                self.dynamic_labels['balloon_count'].configure(
+                    text=f"Aktif Balon: {data['balloon_count']}"
+                )
+            
+            # Başarı oranını hesapla
+            detected = data.get('targets_detected', 0)
+            destroyed = data.get('targets_destroyed', 0)
+            if detected > 0:
+                success_rate = (destroyed / detected) * 100
+                self.dynamic_labels['success_rate'].configure(
+                    text=f"Başarı Oranı: {success_rate:.1f}%"
+                )
+        
+        elif self.phase == 2:
+            # AŞAMA 2 GÜNCELLEMELERİ
+            if 'friend_targets' in data:
+                self.dynamic_labels['friend_targets'].configure(
+                    text=f"Dost Hedef: {data['friend_targets']}"
+                )
+            
+            if 'enemy_targets' in data:
+                self.dynamic_labels['enemy_targets'].configure(
+                    text=f"Düşman Hedef: {data['enemy_targets']}"
+                )
+            
+            if 'enemy_destroyed' in data:
+                self.dynamic_labels['enemy_destroyed'].configure(
+                    text=f"İmha Edilen Düşman: {data['enemy_destroyed']}"
+                )
+            
+            if 'classification_accuracy' in data:
+                accuracy = data['classification_accuracy']
+                color = "#00ff88" if accuracy > 90 else "#ffaa00" if accuracy > 70 else "#ff6b6b"
+                self.dynamic_labels['classification_accuracy'].configure(
+                    text=f"Tanıma Doğruluğu: {accuracy:.1f}%",
+                    text_color=color
+                )
+        
+        elif self.phase == 3:
+            # AŞAMA 3 GÜNCELLEMELERİ
+            if 'target_color' in data:
+                color_name = data['target_color']
+                color_display = {
+                    'red': '🔴 Kırmızı',
+                    'blue': '🔵 Mavi', 
+                    'green': '🟢 Yeşil',
+                    'yellow': '🟡 Sarı',
+                    'orange': '🟠 Turuncu',
+                    'purple': '🟣 Mor',
+                    'unknown': '❓ Bilinmiyor'
+                }
+                self.dynamic_labels['target_color'].configure(
+                    text=f"Hedef Renk: {color_display.get(color_name, color_name)}"
+                )
+            
+            if 'target_shape' in data:
+                shape_name = data['target_shape']
+                shape_display = {
+                    'circle': '⭕ Daire',
+                    'square': '🟫 Kare',
+                    'triangle': '🔺 Üçgen',
+                    'rectangle': '🟫 Dikdörtgen',
+                    'unknown': '❓ Bilinmiyor'
+                }
+                self.dynamic_labels['target_shape'].configure(
+                    text=f"Hedef Şekil: {shape_display.get(shape_name, shape_name)}"
+                )
+            
+            if 'current_platform' in data:
+                platform = data['current_platform']
+                self.dynamic_labels['current_platform'].configure(
+                    text=f"Platform: {platform}"
+                )
+            
+            if 'qr_code_detected' in data:
+                qr_detected = data['qr_code_detected']
+                if qr_detected:
+                    self.dynamic_labels['qr_code_detected'].configure(
+                        text="QR Kod: ✅ Tespit Edildi",
+                        text_color="#00ff88"
+                    )
+                else:
+                    self.dynamic_labels['qr_code_detected'].configure(
+                        text="QR Kod: ❌ Tespit Edilmedi",
+                        text_color="#ff6b6b"
+                    )
+            
+            if 'engagement_authorized' in data:
+                authorized = data['engagement_authorized']
+                if authorized:
+                    self.dynamic_labels['engagement_authorized'].configure(
+                        text="Angajman: ✅ Yetkili",
+                        text_color="#00ff88"
+                    )
+                else:
+                    self.dynamic_labels['engagement_authorized'].configure(
+                        text="Angajman: ❌ Yetkisiz",
+                        text_color="#ff6b6b"
+                    )
 
 class CoordinatesModule(BaseModule):
     """Koordinat bilgileri modülü"""
@@ -1010,6 +1182,7 @@ class ControlModule(BaseModule):
         super().__init__(parent, "SİSTEM KONTROLLERİ")
         self.phase = phase
         self.app_controller = None  # BU SATIRI EKLE
+        
 
         self.setup_module()
         
@@ -1026,90 +1199,187 @@ class ControlModule(BaseModule):
             
         # Ortak kontroller
         self.create_common_controls()
-        
-    def create_phase1_controls(self):
-        """Aşama 1 kontrolleri"""
-        pass
-        
-    def create_phase2_controls(self):
-        """Aşama 2 kontrolleri"""
-        self.auto_button = ctk.CTkButton(
-            self.frame,
-            text="DÜŞMAN TESPİT BAŞLAT",
-            fg_color="#FF9800",
-            hover_color="#F57C00",
-            height=40,
-            command=self.start_enemy_detection
-        )
-        self.auto_button.pack(fill="x", padx=10, pady=5)
-        
-    def create_phase3_controls(self):
-        """Aşama 3 kontrolleri"""
-    
-        
-        # Angajman başlat
-        self.auto_button = ctk.CTkButton(
-            self.frame,
-            text="ANGAJMAN BAŞLAT",
-            fg_color="#F44336",
-            hover_color="#D32F2F",
-            height=40,
-            command=self.start_auto_scan
-        )
-        self.auto_button.pack(fill="x", padx=10, pady=5)
-        
-    def create_common_controls(self):
-        """Ortak kontroller"""
-        # Ateş butonu
-        if self.phase == 0 or self.phase == 3:
-            self.fire_button = ctk.CTkButton(
-                self.frame,
-                text="ATEŞ!",
-                font=ctk.CTkFont(size=16, weight="bold"),
-                fg_color="#ff4444",
-                hover_color="#cc3333",
-                height=50,
-                command=self.fire_weapon
-            )
-            self.fire_button.pack(fill="x", padx=10, pady=10)
-        
-        # Kalibrasyon
-        calibrate_button = ctk.CTkButton(
-            self.frame,
-            text="KALİBRASYON",
-            fg_color="#4499ff",
-            hover_color="#3377cc",
-            height=35,
-            command=self.calibrate
-        )
-        calibrate_button.pack(fill="x", padx=10, pady=2)
             
-    def start_auto_scan(self):
+    def create_phase1_controls(self):
+            """Aşama 1 kontrolleri - BALLOON HUNTING"""
+            # Balon arama başlat
+            self.balloon_hunt_button = ctk.CTkButton(
+                self.frame,
+                text="🎈 BALON AVINI BAŞLAT",
+                fg_color="#4CAF50",
+                hover_color="#388E3C",
+                height=40,
+                command=self.start_balloon_hunt
+            )
+            self.balloon_hunt_button.pack(fill="x", padx=10, pady=5)
+            
+            # Otomatik mod
+            self.auto_hunt_button = ctk.CTkButton(
+                self.frame,
+                text="🤖 OTOMATİK AV",
+                fg_color="#FF9800",
+                hover_color="#F57C00",
+                height=35,
+                command=self.toggle_auto_hunt
+            )
+            self.auto_hunt_button.pack(fill="x", padx=10, pady=2)
+            
+    def create_phase2_controls(self):
+            """Aşama 2 kontrolleri - FRIEND/FOE IDENTIFICATION"""
+            # Düşman tespit sistemi
+            self.foe_detection_button = ctk.CTkButton(
+                self.frame,
+                text="👥 DÜŞMAN TESPİT BAŞLAT",
+                fg_color="#FF9800",
+                hover_color="#F57C00",
+                height=40,
+                command=self.start_foe_detection
+            )
+            self.foe_detection_button.pack(fill="x", padx=10, pady=5)
+            
+            # Sınıflandırma ayarları
+            self.classification_button = ctk.CTkButton(
+                self.frame,
+                text="🔍 SINIFLANDIRMA AYARLARI",
+                fg_color="#2196F3",
+                hover_color="#1976D2",
+                height=35,
+                command=self.open_classification_settings
+            )
+            self.classification_button.pack(fill="x", padx=10, pady=2)
+            
+    def create_phase3_controls(self):
+            """Aşama 3 kontrolleri - QR CODE & ENGAGEMENT"""
+            # QR kod okuma
+            self.qr_read_button = ctk.CTkButton(
+                self.frame,
+                text="📱 QR KOD OKU",
+                fg_color="#9C27B0",
+                hover_color="#7B1FA2",
+                height=40,
+                command=self.read_qr_code
+            )
+            self.qr_read_button.pack(fill="x", padx=10, pady=5)
+            
+            # Platform değiştir
+            self.platform_button = ctk.CTkButton(
+                self.frame,
+                text="🔄 PLATFORM DEĞİŞTİR",
+                fg_color="#607D8B",
+                hover_color="#455A64",
+                height=35,
+                command=self.switch_platform
+            )
+            self.platform_button.pack(fill="x", padx=10, pady=2)
+            
+            # Angajman başlat
+            self.engagement_button = ctk.CTkButton(
+                self.frame,
+                text="⚡ ANGAJMAN BAŞLAT",
+                fg_color="#F44336",
+                hover_color="#D32F2F",
+                height=40,
+                command=self.start_engagement
+            )
+            self.engagement_button.pack(fill="x", padx=10, pady=5)
+            
+    def create_common_controls(self):
+            """Ortak kontroller"""
+            # Ateş butonu
+            if self.phase in [0, 1, 2, 3]:  # Tüm aşamalarda ateş butonu
+                self.fire_button = ctk.CTkButton(
+                    self.frame,
+                    text="🔥 ATEŞ!",
+                    font=ctk.CTkFont(size=16, weight="bold"),
+                    fg_color="#ff4444",
+                    hover_color="#cc3333",
+                    height=50,
+                    command=self.fire_weapon
+                )
+                self.fire_button.pack(fill="x", padx=10, pady=10)
+            
+            # Kalibrasyon
+            calibrate_button = ctk.CTkButton(
+                self.frame,
+                text="🔧 KALİBRASYON",
+                fg_color="#4499ff",
+                hover_color="#3377cc",
+                height=35,
+                command=self.calibrate
+            )
+            calibrate_button.pack(fill="x", padx=10, pady=2)
+        
+        # ========== AŞAMA 1 KOMUTLARI ==========
+    def start_balloon_hunt(self):
+            """Balon avı başlat"""
             if self.app_controller:
-                self.app_controller.send_command("start_scan")
-
-    def start_enemy_detection(self):
-        if self.app_controller:
-            self.app_controller.send_command("start_system")
-            self.app_controller.send_command("change_mode", 2)
-
-    def start_engagement(self):
-        if self.app_controller:
-            self.app_controller.send_command("start_system")
-            self.app_controller.send_command("change_mode", 3)
-
+                self.app_controller.send_command("start_system")
+                self.app_controller.send_command("change_mode", 1)
+                print("[CONTROL] Balon avı başlatıldı")
+        
+    def toggle_auto_hunt(self):
+            """Otomatik av modunu aç/kapat"""
+            if self.app_controller:
+                self.app_controller.send_command("auto_hunt_toggle")
+                print("[CONTROL] Otomatik av modu değiştirildi")
+        
+        # ========== AŞAMA 2 KOMUTLARI ==========
+    def start_foe_detection(self):
+            """Düşman tespit sistemini başlat"""
+            if self.app_controller:
+                self.app_controller.send_command("start_system")
+                self.app_controller.send_command("change_mode", 2)
+                print("[CONTROL] Düşman tespit sistemi başlatıldı")
+        
+    def open_classification_settings(self):
+            """Sınıflandırma ayarları penceresini aç"""
+            # Basit popup pencere
+            settings_window = ctk.CTkToplevel()
+            settings_window.title("Sınıflandırma Ayarları")
+            settings_window.geometry("300x200")
+            
+            ctk.CTkLabel(settings_window, text="Dost-Düşman Tanıma Ayarları", 
+                        font=ctk.CTkFont(size=14, weight="bold")).pack(pady=20)
+            
+            ctk.CTkLabel(settings_window, text="Doğruluk Eşiği: %90").pack(pady=5)
+            ctk.CTkSlider(settings_window, from_=70, to=99).pack(pady=10)
+            
+            ctk.CTkButton(settings_window, text="Kaydet", 
+                        command=settings_window.destroy).pack(pady=20)
+        
+        # ========== AŞAMA 3 KOMUTLARI ==========
     def read_qr_code(self):
-        if self.app_controller:
-            self.app_controller.send_command("read_qr")
-
+            """QR kod okuma başlat"""
+            if self.app_controller:
+                self.app_controller.send_command("read_qr")
+                print("[CONTROL] QR kod okuma başlatıldı")
+        
+    def switch_platform(self):
+            """Platform değiştir"""
+            if self.app_controller:
+                self.app_controller.send_command("switch_platform")
+                print("[CONTROL] Platform değiştirme komutu gönderildi")
+        
+    def start_engagement(self):
+            """Angajman başlat"""
+            if self.app_controller:
+                self.app_controller.send_command("start_system") 
+                self.app_controller.send_command("change_mode", 3)
+                self.app_controller.send_command("start_engagement")
+                print("[CONTROL] Angajman başlatıldı")
+        
+        # ========== ORTAK KOMUTLAR ==========
     def fire_weapon(self):
-        if self.app_controller:
-            self.app_controller.send_command("fire_weapon")
+            """Ateş et"""
+            if self.app_controller:
+                self.app_controller.send_command("fire_weapon")
+                print(f"[CONTROL] ATEŞ komutu gönderildi (Aşama {self.phase})")
 
     def calibrate(self):
-        if self.app_controller:
-            self.app_controller.send_command("calibrate_joystick")
-
+            """Kalibrasyon"""
+            if self.app_controller:
+                self.app_controller.send_command("calibrate_joystick")
+                print("[CONTROL] Kalibrasyon başlatıldı")
 class SkyShieldMainGUI:
     """Ana GUI sınıfı"""
     def __init__(self, phase):
@@ -1711,11 +1981,13 @@ class SkyShieldMainGUI:
         self.app_controller.register_callback("raspberry_connection_changed", safe_connection_callback)
         self.app_controller.register_callback("raspberry_error", safe_error_callback)
 
-    def _safe_update_gui(self, data):
-        """Thread-safe GUI güncellemesi"""
-        try:
-            print(f"[DEBUG] GUI'ye gelen veri: {data}")  # BU SATIRI EKLE
 
+    def _safe_update_gui(self, data):
+        """Thread-safe GUI güncellemesi - PHASE-SPECIFIC DATA SUPPORT"""
+        try:
+            print(f"[DEBUG] GUI'ye gelen veri: {data}")
+            
+            # ========== ORTAK VERİLER ==========
             if hasattr(self, 'coords_module') and data:
                 if 'pan_angle' in data and 'tilt_angle' in data:
                     self.coords_module.update_coordinates(
@@ -1734,30 +2006,66 @@ class SkyShieldMainGUI:
                 else:
                     self.status_module.update_status("Sistem Hazır", "#cccccc")
                     self.status_module.update_progress(0.0)
-             
-                # ✅ YENİ: CONTROLLER DURUMU GÜNCELLE (Sadece Aşama 0 için)
+            
+            # ========== CONTROLLER DURUMU (Aşama 0) ==========
             if (hasattr(self, 'target_module') and 
                 hasattr(self.target_module, 'update_controller_status') and
-                self.phase == 0):  # Sadece manuel modda
+                self.phase == 0):
                 
                 print(f"[MAIN GUI] Controller verisi gönderiliyor: {data.get('controller_connected', 'EKSIK')}")
                 self.target_module.update_controller_status(data)
             
+            # ========== YENİ: AŞAMA-SPESİFİK VERİLER ==========W
+            if hasattr(self, 'target_module') and hasattr(self.target_module, 'update_phase_data'):
+                self.target_module.update_phase_data(data)
+                print(f"[MAIN GUI] Aşama {self.phase} verileri güncellendi")
+            
+            # ========== MÜHİMMAT SİSTEMİ GÜNCELLEMESİ ==========
+            if hasattr(self, 'weapon_module') and 'weapon' in data:
+                # Raspberry Pi'den gelen mühimmat bilgisini GUI'ye yansıt
+                weapon_type = data['weapon']
+                weapon_map = {
+                    'Laser': 'Lazer',
+                    'Airgun': 'Boncuk', 
+                    'Auto': 'Otomatik',
+                    'None': 'Seçilmedi'
+                }
+                gui_weapon = weapon_map.get(weapon_type, weapon_type)
+                self.weapon_module.update_weapon_selection(gui_weapon)
+                print(f"[MAIN GUI] Mühimmat güncellendi: {gui_weapon}")
+            
         except Exception as e:
             print(f"[MAIN GUI] GUI güncelleme hatası: {e}")
-
+   
+   
+   
     def _safe_add_log(self, log_entry):
-        """Thread-safe log ekleme"""
-        try:
-            if hasattr(self, 'log_module'):
-                parts = log_entry.split('] ', 2)
-                if len(parts) >= 3:
-                    message = parts[2]
-                    self.log_module.add_log(message)
-                else:
-                    self.log_module.add_log(log_entry)
-        except Exception as e:
-            print(f"[MAIN GUI] Log ekleme hatası: {e}")
+            """Thread-safe log ekleme - PHASE-AWARE LOGGING"""
+            try:
+                if hasattr(self, 'log_module'):
+                    # Log entry'den mesajı çıkar
+                    parts = log_entry.split('] ', 2)
+                    if len(parts) >= 3:
+                        message = parts[2]
+                        
+                        # Aşama-spesifik log prefix'i ekle
+                        phase_prefix = f"[AŞAMA {self.phase}] " if self.phase > 0 else "[MANUEL] "
+                        
+                        # Özel log mesajları için renklendirme
+                        if "balon" in message.lower() or "balloon" in message.lower():
+                            message = f"🎈 {message}"
+                        elif "düşman" in message.lower() or "enemy" in message.lower():
+                            message = f"🎯 {message}"
+                        elif "qr" in message.lower():
+                            message = f"📱 {message}"
+                        elif "angajman" in message.lower() or "engagement" in message.lower():
+                            message = f"⚡ {message}"
+                        
+                        self.log_module.add_log(f"{phase_prefix}{message}")
+                    else:
+                        self.log_module.add_log(log_entry)
+            except Exception as e:
+                print(f"[MAIN GUI] Log ekleme hatası: {e}")
 
     def _safe_connection_update(self, connection_data):
         """Thread-safe bağlantı güncellemesi"""

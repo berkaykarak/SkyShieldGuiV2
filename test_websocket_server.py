@@ -1,19 +1,18 @@
-# test_websocket_server.py
+# test_websocket_server.py - FRESH START - İHTİYACA YÖNELIK
 import asyncio
 import websockets
 import json
 import logging
-import random
 import time
 from datetime import datetime
 
 # Logging ayarları
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(message)s')
 
-class TestWebSocketServer:
+class SimpleTestWebSocketServer:
     """
-    Raspberry Pi WebSocket server'ını simüle eden test server'ı
-    HTTP kaldırıldı, sadece WebSocket
+    Basit ve etkili WebSocket test server'ı
+    Aşama-spesifik veriler 1'den başlayıp her saniye 1 artır
     """
     
     def __init__(self, host="localhost", port=9000):
@@ -21,13 +20,12 @@ class TestWebSocketServer:
         self.port = port
         self.clients = set()
         
-        # Simüle edilen shared memory
+        # BAŞLANGIÇ VERİLERİ - HEPSİ 1'DEN BAŞLIYOR
         self.shared_data = {
-            # Sistem durumu
+            # ========== ORTAK SİSTEM VERİLERİ ==========
             "system_mode": -1,
             "phase_mode": -1,
-            "system_active": False,     # YENİ EKLENEN - EKSIK OLAN BU!
-
+            "system_active": False,
             "target_destroyed_flag": False,
             "scanning_target_flag": False,
             
@@ -42,273 +40,247 @@ class TestWebSocketServer:
             "target_side": "O",
             "target_detected_flag": False,
             
-            # PID çıktıları
-            "correction_pan": 0,
-            "correction_tilt": 0,
-            "error_x": 0.0,
-            "error_y": 0.0,
-            
             # Joystick
-            "controller_connected": True,   
-
+            "controller_connected": True,
             
             # GUI bayrakları
             "calibration_flag": False,
             "fire_gui_flag": False,
-            "engagement_started_flag": False
+            "engagement_started_flag": False,
+            
+            # ========== AŞAMA 1 VERİLERİ - 1'DEN BAŞLA ==========
+            "targets_detected": 1,       # 1'den başla
+            "targets_destroyed": 1,      # 1'den başla
+            "balloon_count": 1,          # 1'den başla
+            
+            # ========== AŞAMA 2 VERİLERİ - 1'DEN BAŞLA ==========
+            "friend_targets": 1,         # 1'den başla
+            "enemy_targets": 1,          # 1'den başla
+            "enemy_destroyed": 1,        # 1'den başla
+            "classification_accuracy": 90.0,  # 90%'dan başla
+            
+            # ========== AŞAMA 3 VERİLERİ - SABİT ==========
+            "target_color": "red",       # Başlangıç: kırmızı
+            "target_shape": "circle",    # Başlangıç: daire
+            "current_platform": "A",     # Başlangıç: A platformu
+            "qr_code_detected": True,    # Başlangıç: tespit edilmiş
+            "engagement_authorized": True,  # Başlangıç: yetkili
         }
         
-        self.command_count = 0
         self.start_time = time.time()
-      
-    
+        self.update_counter = 0
+        
     async def handle_client(self, websocket):
-        """Yeni client bağlantısını yönet"""
+        """Client bağlantısını yönet"""
         client_ip = websocket.remote_address[0]
         self.clients.add(websocket)
         
-        logging.info(f"🟢 Yeni WebSocket bağlantısı: {client_ip} (Toplam: {len(self.clients)})")
-        # path parametresi websockets 15.x'te handler'a gönderilmiyor
+        logging.info(f"🟢 YENİ BAĞLANTI: {client_ip} (Toplam: {len(self.clients)})")
         
         try:
             # Hoş geldin mesajı
             welcome = {
                 "status": "connected",
-                "message": "Test WebSocket Server",
-                "server_time": datetime.now().isoformat(),
-                "uptime": time.time() - self.start_time
+                "message": "Simple Test WebSocket Server",
+                "server_time": datetime.now().isoformat()
             }
             await websocket.send(json.dumps(welcome))
             
-            # Paralel görevler
+            # Paralel işlemler
             await asyncio.gather(
                 self.receive_commands(websocket),
-                self.send_state_updates(websocket)
+                self.send_updates(websocket)
             )
             
         except websockets.exceptions.ConnectionClosed:
-            logging.warning(f"🔴 Bağlantı kapandı: {client_ip}")
-        except websockets.exceptions.ConnectionClosedError as e:
-            logging.warning(f"🔴 Bağlantı zorla kapandı: {client_ip} - {e}")
-        except websockets.exceptions.ConnectionClosedOK as e:
-            logging.info(f"✅ Bağlantı normal kapandı: {client_ip}")
+            logging.info(f"🔴 Bağlantı kapandı: {client_ip}")
         except Exception as e:
-            logging.error(f"❌ Client hatası ({type(e).__name__}): {e}")
-            import traceback
-            logging.error(f"📋 Traceback: {traceback.format_exc()}")
+            logging.error(f"❌ Client hatası: {e}")
         finally:
             self.clients.discard(websocket)
-            logging.info(f"📊 Kalan bağlantı sayısı: {len(self.clients)}")
+            logging.info(f"📊 Kalan bağlantı: {len(self.clients)}")
     
     async def receive_commands(self, websocket):
         """GUI'den gelen komutları dinle"""
         async for message in websocket:
             try:
                 data = json.loads(message)
-                self.command_count += 1
-                
-                logging.info(f"📥 Komut #{self.command_count}: {json.dumps(data, indent=2)}")
+                logging.info(f"📥 KOMUT ALINDI: {data}")
                 
                 # Komutları işle
-                changes = self.process_command(data)
-                
-                # Özel işlemler
-                await self.simulate_command_effects(data)
-                
-                logging.info(f"✅ {len(changes)} değişken güncellendi")
+                self.process_command(data)
                 
             except json.JSONDecodeError as e:
-                logging.error(f"❌ JSON parse hatası: {e}")
+                logging.error(f"❌ JSON hatası: {e}")
             except Exception as e:
-                logging.error(f"❌ Komut işleme hatası: {e}")
+                logging.error(f"❌ Komut hatası: {e}")
     
-    async def send_state_updates(self, websocket):
-        """Sürekli sistem durumunu gönder"""
-        logging.info("📡 Durum güncellemeleri başlatıldı (30 saniyede 1)")
-        previous_state = None
+    async def send_updates(self, websocket):
+        """Her saniye veri gönder ve artır"""
+        logging.info("📡 Veri gönderimi başladı (1 saniyede 1 kez)")
         
         while True:
             try:
-                # Aktif sistemde simülasyon yap
-                if self.shared_data["system_active"]:  # system_mode yerine system_active
-                    self.update_simulation()
+                # VERİLERİ ARTTIR (Her saniye +1)
+                self.update_data()
                 
-                # Durumu hazırla
-                state = self.shared_data.copy()
+                # Timestamp ekle
+                current_data = self.shared_data.copy()
+                current_data["timestamp"] = datetime.now().isoformat()
+                current_data["server_uptime"] = time.time() - self.start_time
                 
-                # YENİ: Ayrı alanlar ekle
-                state["current_phase"] = self.shared_data["phase_mode"]     # Aşama bilgisi
-                state["system_status"] = self.shared_data["system_active"]  # Sistem durumu
-                state["timestamp"] = datetime.now().isoformat()
-                state["server_uptime"] = time.time() - self.start_time
+                # Gönder
+                await websocket.send(json.dumps(current_data))
                 
-                # Değişiklik kontrolü (timestamp hariç)
-                state_without_timestamp = {k: v for k, v in state.items() 
-                                        if k not in ["timestamp", "server_uptime"]}
+                # Log (Her 5 saniyede bir detay göster)
+                if self.update_counter % 5 == 0:
+                    logging.info(f"📊 Veri gönderildi #{self.update_counter}")
+                    logging.info(f"   Aşama 1: Tespit={current_data['targets_detected']}, İmha={current_data['targets_destroyed']}")
+                    logging.info(f"   Aşama 2: Dost={current_data['friend_targets']}, Düşman={current_data['enemy_targets']}")
+                    logging.info(f"   Aşama 3: Renk={current_data['target_color']}, Şekil={current_data['target_shape']}")
                 
-                if previous_state != state_without_timestamp:
-                    # Değişen alanları bul
-                    if previous_state is not None:
-                        changes = []
-                        for key, value in state_without_timestamp.items():
-                            if key not in previous_state or previous_state[key] != value:
-                                old_val = previous_state.get(key, "N/A")
-                                changes.append(f"{key}: {old_val} → {value}")
-                        
-                        if changes:
-                            logging.info(f"📊 Veri değişikliği algılandı: {', '.join(changes[:3])}")
-                            if len(changes) > 3:
-                                logging.info(f"   ... ve {len(changes)-3} alan daha")
-                    else:
-                        logging.info("📊 İlk veri paketi gönderiliyor")
-                    
-                    previous_state = state_without_timestamp.copy()
-                
-                await websocket.send(json.dumps(state))
-                await asyncio.sleep(30.0)  # 30 saniyede bir gönder
+                await asyncio.sleep(1.0)  # 1 saniye bekle
                 
             except websockets.exceptions.ConnectionClosed:
-                logging.info("📡 Durum güncellemeleri durduruldu (bağlantı kesildi)")
+                logging.info("📡 Veri gönderimi durduruldu")
                 break
             except Exception as e:
-                logging.error(f"❌ Durum gönderme hatası: {e}")
+                logging.error(f"❌ Veri gönderme hatası: {e}")
                 break
-    def process_command(self, data):
-        """Gelen komutları işle"""
-        changes = []
-        
-        for key, value in data.items():
-            if key in ["timestamp", "source"]:
-                continue  # Metadata
-            
-            if key in self.shared_data:
-                old_value = self.shared_data[key]
-                
-                # Tip uyumluluğu
-                if isinstance(old_value, bool):
-                    self.shared_data[key] = bool(value)
-                elif isinstance(old_value, int):
-                    self.shared_data[key] = int(value)
-                elif isinstance(old_value, float):
-                    self.shared_data[key] = float(value)
-                else:
-                    self.shared_data[key] = value
-                
-                changes.append(f"{key}: {old_value} → {self.shared_data[key]}")
-            
-            # YENİ: Özel komut işlemleri
-            elif key == "change_phase":  # GUI'den aşama değişikliği
-                old_phase = self.shared_data["phase_mode"]
-                self.shared_data["phase_mode"] = int(value)
-                changes.append(f"phase_mode: {old_phase} → {self.shared_data['phase_mode']}")
-                logging.info(f"📡 Aşama değişti: {old_phase} → {value}")
-            
-            elif key == "start_system":  # Sistem başlatma
-                self.shared_data["system_active"] = True
-                self.shared_data["system_mode"] = 1
-                changes.append(f"system_active: False → True")
-                logging.info(f"🚀 Sistem başlatıldı")
-            
-            elif key == "stop_system":  # Sistem durdurma
-                self.shared_data["system_active"] = False
-                self.shared_data["system_mode"] = 0
-                changes.append(f"system_active: True → False")
-                logging.info(f"⏸️ Sistem durduruldu")
-            
-            else:
-                logging.warning(f"⚠️ Bilinmeyen alan: {key}")
-        
-        return changes
     
-    async def simulate_command_effects(self, data):
-        """Komut etkilerini simüle et"""
+    def update_data(self):
+        """Verileri güncelle - HER SANİYE +1"""
+        self.update_counter += 1
         
-        # Sistem modu değişimi
-        if "system_mode" in data:
-            mode = data["system_mode"]
-            mode_names = {-1: "DURDUR", 0: "MANUEL", 1: "AŞAMA 1", 2: "AŞAMA 2", 3: "AŞAMA 3"}
-            logging.info(f"🎮 Sistem modu: {mode_names.get(mode, f'MOD {mode}')}")
-            
-            if mode > 0:
-                logging.info("🚀 Sistem aktif, tarama başlıyor...")
-                self.shared_data["scanning_target_flag"] = True
-            else:
-                logging.info("🛑 Sistem durduruldu")
-                self.shared_data["scanning_target_flag"] = False
-                self.shared_data["target_detected_flag"] = False
+        # ========== AŞAMA 1 VERİLERİ +1 ==========
+        self.shared_data["targets_detected"] += 1
+        self.shared_data["targets_destroyed"] += 1
+        self.shared_data["balloon_count"] += 1
         
-        # Ateş komutu
-        if data.get("fire_gui_flag"):
-            logging.info("💥 ATEŞ KOMUTİ AKTİVE!")
-            await asyncio.sleep(0.5)
-            if self.shared_data["target_detected_flag"]:
-                logging.info("🎯 Hedef vuruldu!")
-                self.shared_data["target_destroyed_flag"] = True
-                await asyncio.sleep(1)
-                self.shared_data["target_destroyed_flag"] = False
-                self.shared_data["target_detected_flag"] = False
+        # ========== AŞAMA 2 VERİLERİ +1 ==========
+        self.shared_data["friend_targets"] += 1
+        self.shared_data["enemy_targets"] += 1
+        self.shared_data["enemy_destroyed"] += 1
         
-        # Kalibrasyon
-        if data.get("calibration_flag"):
-            logging.info("🔧 Kalibrasyon başlıyor...")
-            for i in range(3):
-                await asyncio.sleep(0.5)
-                logging.info(f"📐 Kalibrasyon adım {i+1}/3")
-            self.shared_data["calibration_flag"] = False
-            logging.info("✅ Kalibrasyon tamamlandı!")
-    
-    def update_simulation(self):
-        """Sistem aktifken simülasyon verileri üret"""
-        import random
+        # Classification accuracy yavaş artır (her 10 saniyede +1)
+        if self.update_counter % 10 == 0:
+            self.shared_data["classification_accuracy"] += 1.0
+            if self.shared_data["classification_accuracy"] > 99.0:
+                self.shared_data["classification_accuracy"] = 90.0  # Reset
         
-        # ✅ Controller her zaman bağlı (döngüyü kaldırdık)
+        # ========== AŞAMA 3 VERİLERİ DÖNGÜ ==========
+        # Her 10 saniyede değişen döngü
+        cycle = (self.update_counter // 10) % 4
+        
+        if cycle == 0:
+            self.shared_data["target_color"] = "red"
+            self.shared_data["target_shape"] = "circle"
+            self.shared_data["qr_code_detected"] = True
+            self.shared_data["engagement_authorized"] = True
+        elif cycle == 1:
+            self.shared_data["target_color"] = "blue"
+            self.shared_data["target_shape"] = "square"
+            self.shared_data["qr_code_detected"] = True
+            self.shared_data["engagement_authorized"] = False
+        elif cycle == 2:
+            self.shared_data["target_color"] = "green"
+            self.shared_data["target_shape"] = "triangle"
+            self.shared_data["qr_code_detected"] = True
+            self.shared_data["engagement_authorized"] = True
+        else:
+            self.shared_data["target_color"] = "unknown"
+            self.shared_data["target_shape"] = "unknown"
+            self.shared_data["qr_code_detected"] = False
+            self.shared_data["engagement_authorized"] = False
+        
+        # Platform değişimi (her 15 saniyede)
+        platform_cycle = (self.update_counter // 15) % 2
+        self.shared_data["current_platform"] = "A" if platform_cycle == 0 else "B"
+        
+        # ========== ORTAK VERİLER ==========
+        # Controller her zaman bağlı
         self.shared_data["controller_connected"] = True
         
-        # Hedef hareket simülasyonu
-        self.shared_data["x_target"] += random.randint(-50, 50)
-        self.shared_data["y_target"] += random.randint(-50, 50)
+        # Hedef tespiti döngüsü (her 5 saniyede)
+        if (self.update_counter % 5) < 3:
+            self.shared_data["target_detected_flag"] = True
+            weapon_cycle = self.update_counter % 3
+            if weapon_cycle == 0:
+                self.shared_data["weapon"] = "L"  # Laser
+            elif weapon_cycle == 1:
+                self.shared_data["weapon"] = "A"  # Airgun
+            else:
+                self.shared_data["weapon"] = "E"  # None
+        else:
+            self.shared_data["target_detected_flag"] = False
+            self.shared_data["weapon"] = "E"
         
-        # Sınırlar içinde tut
-        self.shared_data["x_target"] = max(50, min(590, self.shared_data["x_target"]))
-        self.shared_data["y_target"] = max(50, min(430, self.shared_data["y_target"]))
+        # Hedef pozisyonu (yavaş hareket)
+        import math
+        angle = self.update_counter * 0.1
+        self.shared_data["x_target"] = int(320 + 100 * math.cos(angle))
+        self.shared_data["y_target"] = int(240 + 50 * math.sin(angle))
         
         # Motor açıları
-        self.shared_data["global_angle"] += random.uniform(-30, 30)
-        self.shared_data["global_tilt_angle"] += random.uniform(-15, 15)
+        self.shared_data["global_angle"] = 30 * math.sin(angle)
+        self.shared_data["global_tilt_angle"] = 15 * math.cos(angle * 0.7)
+    
+    def process_command(self, data):
+        """Gelen komutları işle"""
+        if "change_phase" in data:
+            phase = int(data["change_phase"])
+            self.shared_data["phase_mode"] = phase
+            logging.info(f"🔄 Aşama değişti: {phase}")
         
-        # Sınırlar
-        self.shared_data["global_angle"] = max(-180, min(180, self.shared_data["global_angle"]))
-        self.shared_data["global_tilt_angle"] = max(-90, min(90, self.shared_data["global_tilt_angle"]))
+        if "start_system" in data:
+            self.shared_data["system_active"] = True
+            self.shared_data["scanning_target_flag"] = True
+            logging.info("🚀 Sistem başlatıldı")
         
-        # Hedef tespit simülasyonu
-        if self.shared_data["scanning_target_flag"]:
-            self.shared_data["target_detected_flag"] = random.choice([True, False])
-            if self.shared_data["target_detected_flag"]:
-                self.shared_data["weapon"] = random.choice(["L", "A"])
-            else:
-                self.shared_data["weapon"] = "E"
+        if "stop_system" in data:
+            self.shared_data["system_active"] = False
+            self.shared_data["scanning_target_flag"] = False
+            logging.info("⏸️ Sistem durduruldu")
         
-        # Basit debug çıktısı
-        print(f"[SIMULATION] Controller: Bağlı, Pan={self.shared_data['global_angle']:.1f}°, Tilt={self.shared_data['global_tilt_angle']:.1f}°")
- 
+        if "fire_gui_flag" in data and data["fire_gui_flag"]:
+            logging.info("💥 ATEŞ KOMUTİ!")
+            # Fire flag'i işaretle
+            self.shared_data["fire_gui_flag"] = True
+            # 2 saniye sonra reset et
+            asyncio.create_task(self.reset_fire_flag())
+    
+    async def reset_fire_flag(self):
+        """Fire flag'ini 2 saniye sonra sıfırla"""
+        await asyncio.sleep(2)
+        self.shared_data["fire_gui_flag"] = False
+    
     async def start_server(self):
-        """WebSocket server'ı başlat"""
-        logging.info("🚀 Test WebSocket Server Başlatılıyor...")
+        """Server'ı başlat"""
+        logging.info("🚀 Simple Test WebSocket Server Başlatılıyor...")
         logging.info(f"🌐 Adres: ws://{self.host}:{self.port}")
-        logging.info("📊 Başlangıç durumu:")
-        for key, value in self.shared_data.items():
-            logging.info(f"   {key}: {value}")
+        logging.info("📊 Başlangıç değerleri:")
+        
+        # Sadece önemli başlangıç değerlerini göster
+        important_keys = [
+            "targets_detected", "targets_destroyed", "balloon_count",
+            "friend_targets", "enemy_targets", "enemy_destroyed",
+            "target_color", "target_shape", "controller_connected"
+        ]
+        
+        for key in important_keys:
+            logging.info(f"   {key}: {self.shared_data[key]}")
+        
         logging.info("=" * 60)
         
-        # Use the new websockets 15.x API
         async with websockets.serve(self.handle_client, self.host, self.port):
-            logging.info("✅ Server başlatıldı! GUI bağlantısı bekleniyor...")
-            logging.info("🔄 GUI'yi başlatabilirsin (Ctrl+C ile durdur)")
+            logging.info("✅ Server başlatıldı! GUI'yi başlatabilirsin.")
+            logging.info("🔄 Veriler her saniye +1 artacak (Ctrl+C ile durdur)")
             await asyncio.Future()  # Sonsuz bekle
+
 
 def main():
     """Ana fonksiyon"""
-    server = TestWebSocketServer()
+    server = SimpleTestWebSocketServer()
     
     try:
         asyncio.run(server.start_server())
@@ -316,6 +288,7 @@ def main():
         logging.info("\n🛑 Server durduruldu (Ctrl+C)")
     except Exception as e:
         logging.error(f"❌ Server hatası: {e}")
+
 
 if __name__ == "__main__":
     main()
