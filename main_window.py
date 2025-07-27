@@ -1,3 +1,4 @@
+import traceback
 import customtkinter as ctk
 import tkinter as tk
 import threading  # YENİ: Threading fix için
@@ -2066,6 +2067,8 @@ class SkyShieldMainGUI:
                         self.log_module.add_log(log_entry)
             except Exception as e:
                 print(f"[MAIN GUI] Log ekleme hatası: {e}")
+                traceback.print_exc()  # ← Detaylı hata mesajı
+
 
     def _safe_connection_update(self, connection_data):
         """Thread-safe bağlantı güncellemesi"""

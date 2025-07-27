@@ -67,6 +67,16 @@ class SystemState:
     raspberry_connected: bool = False
     camera_connected: bool = False
     controller_connected: bool = False
+        # STAGE_2
+    friend_targets: int = 0
+    enemy_targets: int = 0
+    enemy_destroyed: int = 0
+    classification_accuracy: float = 0.0
+
+    # STAGE_3
+    target_color: str = "unknown"
+    target_shape: str = "unknown"
+
     
     def __post_init__(self):
         if self.target is None:
@@ -402,60 +412,73 @@ class AppController:
     
    
     def _convert_raspberry_data_to_gui_format(self, raspberry_data: Dict[str, Any]) -> Dict[str, Any]:
-        """Raspberry Pi formatını GUI formatına çevir - SADECE FLAG'LER"""
         gui_data = {}
         
         try:
-            # YENİ: Sadece flag'lerle çalış
             if 'system_active' in raspberry_data:
                 gui_data['system_active'] = raspberry_data['system_active']
                 gui_data['active'] = raspberry_data['system_active']
-            
+
             if 'phase_mode' in raspberry_data:
                 gui_data['mode'] = raspberry_data['phase_mode']
                 gui_data['mode_name'] = self._get_mode_name(raspberry_data['phase_mode'])
-            
-            # Hedef bilgileri
+
             if 'target_detected_flag' in raspberry_data:
                 gui_data['target_locked'] = raspberry_data['target_detected_flag']
             if 'x_target' in raspberry_data:
                 gui_data['target_x'] = float(raspberry_data['x_target'])
             if 'y_target' in raspberry_data:
                 gui_data['target_y'] = float(raspberry_data['y_target'])
-            
-            # Açı bilgileri - PAN/TILT DOĞRUDAN
+
             if 'pan_angle' in raspberry_data:
                 gui_data['pan_angle'] = float(raspberry_data['pan_angle'])
             if 'tilt_angle' in raspberry_data:
                 gui_data['tilt_angle'] = float(raspberry_data['tilt_angle'])
-            
-            # ESKI global_angle formatı da destekle (geçiş için)
             if 'global_angle' in raspberry_data:
                 gui_data['pan_angle'] = float(raspberry_data['global_angle'])
             if 'global_tilt_angle' in raspberry_data:
                 gui_data['tilt_angle'] = float(raspberry_data['global_tilt_angle'])
-            
-            # Mühimmat
+
             if 'weapon' in raspberry_data:
                 weapon_map = {'L': 'Laser', 'A': 'Airgun', 'E': 'None', 'None': 'Auto'}
                 gui_data['weapon'] = weapon_map.get(raspberry_data['weapon'], 'Auto')
-            
-            # Durum bayrakları
-            if 'scanning_target_flag' in raspberry_data:
-                gui_data['scanning'] = raspberry_data['scanning_target_flag']
-            if 'target_destroyed_flag' in raspberry_data:
-                gui_data['target_destroyed'] = raspberry_data['target_destroyed_flag']
-            if 'target_side' in raspberry_data:
-                gui_data['target_side'] = raspberry_data['target_side']
+
             if 'controller_connected' in raspberry_data:
                 gui_data['controller_connected'] = bool(raspberry_data['controller_connected'])
-            
+
+            # ✅ EKLE: Aşama 1 verileri
+            if 'targets_detected' in raspberry_data:
+                gui_data['targets_detected'] = int(raspberry_data['targets_detected'])
+
+            if 'targets_destroyed' in raspberry_data:
+                gui_data['targets_destroyed'] = int(raspberry_data['targets_destroyed'])
+
+            if 'balloon_count' in raspberry_data:
+                gui_data['balloon_count'] = int(raspberry_data['balloon_count'])
+
+            # ✅ EKLE: Aşama 2 verileri
+            if 'friend_targets' in raspberry_data:
+                gui_data['friend_targets'] = int(raspberry_data['friend_targets'])
+            if 'enemy_targets' in raspberry_data:
+                gui_data['enemy_targets'] = int(raspberry_data['enemy_targets'])
+            if 'enemy_destroyed' in raspberry_data:
+                gui_data['enemy_destroyed'] = int(raspberry_data['enemy_destroyed'])
+            if 'classification_accuracy' in raspberry_data:
+                gui_data['classification_accuracy'] = float(raspberry_data['classification_accuracy'])
+
+            # ✅ EKLE: Aşama 3 verileri
+            if 'target_color' in raspberry_data:
+                gui_data['target_color'] = str(raspberry_data['target_color'])
+            if 'target_shape' in raspberry_data:
+                gui_data['target_shape'] = str(raspberry_data['target_shape'])
+
             print(f"[DEBUG] Final GUI verisi: {gui_data}")
-            
+
         except Exception as e:
             print(f"[WS CLIENT] Veri dönüştürme hatası: {e}")
-        
+
         return gui_data
+
    
     def register_callback(self, event: str, callback: Callable) -> None:
         """Olay dinleyicisi kaydet"""
@@ -471,13 +494,22 @@ class AppController:
                     callback(data)
                 except Exception as e:
                     self.add_log(f"Callback hatası [{event}]: {e}", "ERROR")
-    
+
+
+
     def update_target_data(self, target_data: Dict[str, Any]) -> None:
-        """Hedef verilerini güncelle"""
+        """Hedef verilerini güncelle - Aşamalara göre ayrılmış şekilde"""
         if not target_data:
             return
-            
-        # Hedef bilgilerini güncelle
+
+        # Mod güncellemesi
+        if 'mode' in target_data:
+            try:
+                self.state.mode = SystemMode(target_data['mode'])
+            except ValueError:
+                pass
+
+        # Genel hedef bilgileri
         if 'target_x' in target_data:
             self.state.target.x = target_data['target_x']
         if 'target_y' in target_data:
@@ -498,22 +530,40 @@ class AppController:
                 'None': WeaponType.NONE
             }
             self.state.selected_weapon = weapon_map.get(target_data['weapon'], WeaponType.NONE)
-        
+
         # Motor pozisyonları
         if 'pan_angle' in target_data:
             self.state.pan_angle = target_data['pan_angle']
         if 'tilt_angle' in target_data:
             self.state.tilt_angle = target_data['tilt_angle']
-        
-        # İstatistik güncellemeleri
-        if 'target_destroyed' in target_data and target_data['target_destroyed']:
-            self.state.targets_destroyed += 1
-        
+
+        # ✅ AŞAMA 1 verileri
+        if self.state.mode == SystemMode.STAGE_1:
+            self.state.targets_detected = target_data.get('targets_detected', self.state.targets_detected)
+            self.state.targets_destroyed = target_data.get('targets_destroyed', self.state.targets_destroyed)
+            self.state.balloon_count = target_data.get('balloon_count', self.state.balloon_count)
+
+        # ✅ AŞAMA 2 verileri
+        elif self.state.mode == SystemMode.STAGE_2:
+            self.state.friend_targets = target_data.get('friend_targets', getattr(self.state, 'friend_targets', 0))
+            self.state.enemy_targets = target_data.get('enemy_targets', getattr(self.state, 'enemy_targets', 0))
+            self.state.enemy_destroyed = target_data.get('enemy_destroyed', getattr(self.state, 'enemy_destroyed', 0))
+            self.state.classification_accuracy = target_data.get('classification_accuracy', getattr(self.state, 'classification_accuracy', 0.0))
+
+        # ✅ AŞAMA 3 verileri
+        elif self.state.mode == SystemMode.STAGE_3:
+            self.state.target_color = target_data.get('target_color', getattr(self.state, 'target_color', 'unknown'))
+            self.state.target_shape = target_data.get('target_shape', getattr(self.state, 'target_shape', 'unknown'))
+
         self.state.last_update = datetime.now()
-        
+
         # GUI'yi güncelle
         self.trigger_event("data_updated", self.get_state_dict())
-    
+
+
+
+
+
     def get_current_frame_for_gui(self, width: int = None, height: int = None):
         """GUI için mevcut kamera frame'ini al"""
         return self.comm_manager.get_current_frame_for_gui(width, height)
