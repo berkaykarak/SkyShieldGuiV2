@@ -371,17 +371,23 @@ class TargetInfoModule(BaseModule):
         )
         self.dynamic_labels['enemy_destroyed'].pack(pady=2)
         
-        # Sınıflandırma Doğruluğu
-        self.dynamic_labels['classification_accuracy'] = ctk.CTkLabel(
+        
+        
+    # main_window.py'de TargetInfoModule içindeki değişiklikler - SADECE target_side
+
+    
+    def create_phase3_info(self):
+        """Aşama 3: SADECE target_side kullan - current_platform kaldırıldı"""
+        
+        # Target Side (EN ÖNEMLİ - en üstte ve kalın)
+        self.dynamic_labels['target_side'] = ctk.CTkLabel(
             self.frame,
-            text="Tanıma Doğruluğu: 0%",
-            font=ctk.CTkFont(size=12),
+            text="Platform: A",
+            font=ctk.CTkFont(size=13, weight="bold"),  # Daha büyük ve kalın
             text_color="#00ccff"
         )
-        self.dynamic_labels['classification_accuracy'].pack(pady=2)
+        self.dynamic_labels['target_side'].pack(pady=3)
         
-    def create_phase3_info(self):
-        """Aşama 3: Dinamik QR kod ve angajman bilgileri"""
         # Hedef Renk
         self.dynamic_labels['target_color'] = ctk.CTkLabel(
             self.frame,
@@ -397,29 +403,10 @@ class TargetInfoModule(BaseModule):
             font=ctk.CTkFont(size=12)
         )
         self.dynamic_labels['target_shape'].pack(pady=2)
-        
-        # Mevcut Platform
-        self.dynamic_labels['current_platform'] = ctk.CTkLabel(
-            self.frame,
-            text="Platform: A",
-            font=ctk.CTkFont(size=12),
-            text_color="#00ccff"
-        )
-        self.dynamic_labels['current_platform'].pack(pady=2)
-        
-        # QR Kod Durumu
-        self.dynamic_labels['qr_code_detected'] = ctk.CTkLabel(
-            self.frame,
-            text="QR Kod: Tespit Edilmedi",
-            font=ctk.CTkFont(size=12),
-            text_color="#ff6b6b"
-        )
-        self.dynamic_labels['qr_code_detected'].pack(pady=2)
-        
-        # Angajman Durumu
+
         self.dynamic_labels['engagement_authorized'] = ctk.CTkLabel(
             self.frame,
-            text="Angajman: Yetkisiz",
+            text="Angajman: ❌ Yetkisiz",
             font=ctk.CTkFont(size=12),
             text_color="#ff6b6b"
         )
@@ -441,121 +428,199 @@ class TargetInfoModule(BaseModule):
                 text_color="#ff6b6b"
             )
     
+    # main_window.py içindeki TargetInfoModule.update_phase_data metodunda düzeltme
+
     def update_phase_data(self, data):
-        """Aşama-spesifik verileri güncelle - YENİ METOD"""
-        
-        if self.phase == 1:
-            # AŞAMA 1 GÜNCELLEMELERİ
-            if 'targets_detected' in data:
-                self.dynamic_labels['targets_detected'].configure(
-                    text=f"Tespit Edilen Balon: {data['targets_detected']}"
-                )
+        """FIXED: Aşama-spesifik verileri güncelle - Color & Shape Display Fix"""
+        try:
             
-            if 'targets_destroyed' in data:
-                self.dynamic_labels['targets_destroyed'].configure(
-                    text=f"İmha Edilen: {data['targets_destroyed']}"
-                )
-            
-            if 'balloon_count' in data:
-                self.dynamic_labels['balloon_count'].configure(
-                    text=f"Aktif Balon: {data['balloon_count']}"
-                )
-            
-            # Başarı oranını hesapla
-            detected = data.get('targets_detected', 0)
-            destroyed = data.get('targets_destroyed', 0)
-            if detected > 0:
-                success_rate = (destroyed / detected) * 100
-                self.dynamic_labels['success_rate'].configure(
-                    text=f"Başarı Oranı: {success_rate:.1f}%"
-                )
-        
-        elif self.phase == 2:
-            # AŞAMA 2 GÜNCELLEMELERİ
-            if 'friend_targets' in data:
-                self.dynamic_labels['friend_targets'].configure(
-                    text=f"Dost Hedef: {data['friend_targets']}"
-                )
-            
-            if 'enemy_targets' in data:
-                self.dynamic_labels['enemy_targets'].configure(
-                    text=f"Düşman Hedef: {data['enemy_targets']}"
-                )
-            
-            if 'enemy_destroyed' in data:
-                self.dynamic_labels['enemy_destroyed'].configure(
-                    text=f"İmha Edilen Düşman: {data['enemy_destroyed']}"
-                )
-            
-            if 'classification_accuracy' in data:
-                accuracy = data['classification_accuracy']
-                color = "#00ff88" if accuracy > 90 else "#ffaa00" if accuracy > 70 else "#ff6b6b"
-                self.dynamic_labels['classification_accuracy'].configure(
-                    text=f"Tanıma Doğruluğu: {accuracy:.1f}%",
-                    text_color=color
-                )
-        
-        elif self.phase == 3:
-            # AŞAMA 3 GÜNCELLEMELERİ
-            if 'target_color' in data:
-                color_name = data['target_color']
-                color_display = {
-                    'red': '🔴 Kırmızı',
-                    'blue': '🔵 Mavi', 
-                    'green': '🟢 Yeşil',
-                    'yellow': '🟡 Sarı',
-                    'orange': '🟠 Turuncu',
-                    'purple': '🟣 Mor',
-                    'unknown': '❓ Bilinmiyor'
-                }
-                self.dynamic_labels['target_color'].configure(
-                    text=f"Hedef Renk: {color_display.get(color_name, color_name)}"
-                )
-            
-            if 'target_shape' in data:
-                shape_name = data['target_shape']
-                shape_display = {
-                    'circle': '⭕ Daire',
-                    'square': '🟫 Kare',
-                    'triangle': '🔺 Üçgen',
-                    'rectangle': '🟫 Dikdörtgen',
-                    'unknown': '❓ Bilinmiyor'
-                }
-                self.dynamic_labels['target_shape'].configure(
-                    text=f"Hedef Şekil: {shape_display.get(shape_name, shape_name)}"
-                )
-            
-            if 'current_platform' in data:
-                platform = data['current_platform']
-                self.dynamic_labels['current_platform'].configure(
-                    text=f"Platform: {platform}"
-                )
-            
-            if 'qr_code_detected' in data:
-                qr_detected = data['qr_code_detected']
-                if qr_detected:
-                    self.dynamic_labels['qr_code_detected'].configure(
-                        text="QR Kod: ✅ Tespit Edildi",
-                        text_color="#00ff88"
-                    )
-                else:
-                    self.dynamic_labels['qr_code_detected'].configure(
-                        text="QR Kod: ❌ Tespit Edilmedi",
-                        text_color="#ff6b6b"
+            if self.phase == 1:
+                # AŞAMA 1 GÜNCELLEMELERİ
+                if 'targets_detected' in data:
+                    value = data['targets_detected']
+                    if 'targets_detected' in self.dynamic_labels:
+                        self.dynamic_labels['targets_detected'].configure(
+                            text=f"Tespit Edilen Balon: {value}"
+                        )
+                
+                if 'targets_destroyed' in data:
+                    value = data['targets_destroyed']
+                    if 'targets_destroyed' in self.dynamic_labels:
+                        self.dynamic_labels['targets_destroyed'].configure(
+                            text=f"İmha Edilen: {value}"
+                        )
+                    
+                if 'balloon_count' in data:
+                    value = data['balloon_count']
+                    if 'balloon_count' in self.dynamic_labels:
+                        self.dynamic_labels['balloon_count'].configure(
+                            text=f"Aktif Balon: {value}"
+                        )
+                
+                # Başarı oranını hesapla
+                detected = data.get('targets_detected', 0)
+                destroyed = data.get('targets_destroyed', 0)
+                if detected > 0 and 'success_rate' in self.dynamic_labels:
+                    success_rate = (destroyed / detected) * 100
+                    self.dynamic_labels['success_rate'].configure(
+                        text=f"Başarı Oranı: {success_rate:.1f}%"
                     )
             
-            if 'engagement_authorized' in data:
-                authorized = data['engagement_authorized']
-                if authorized:
-                    self.dynamic_labels['engagement_authorized'].configure(
-                        text="Angajman: ✅ Yetkili",
-                        text_color="#00ff88"
+            elif self.phase == 2:
+                # AŞAMA 2 GÜNCELLEMELERİ
+                if 'friend_targets' in data and 'friend_targets' in self.dynamic_labels:
+                    value = data['friend_targets']
+                    self.dynamic_labels['friend_targets'].configure(
+                        text=f"Dost Hedef: {value}"
                     )
-                else:
-                    self.dynamic_labels['engagement_authorized'].configure(
-                        text="Angajman: ❌ Yetkisiz",
-                        text_color="#ff6b6b"
+                
+                if 'enemy_targets' in data and 'enemy_targets' in self.dynamic_labels:
+                    value = data['enemy_targets']
+                    self.dynamic_labels['enemy_targets'].configure(
+                        text=f"Düşman Hedef: {value}"
                     )
+                
+                if 'enemy_destroyed' in data and 'enemy_destroyed' in self.dynamic_labels:
+                    value = data['enemy_destroyed']
+                    self.dynamic_labels['enemy_destroyed'].configure(
+                        text=f"İmha Edilen Düşman: {value}"
+                    )
+                
+                if 'classification_accuracy' in data and 'classification_accuracy' in self.dynamic_labels:
+                    accuracy = data['classification_accuracy']
+                    color = "#00ff88" if accuracy > 90 else "#ffaa00" if accuracy > 70 else "#ff6b6b"
+                    self.dynamic_labels['classification_accuracy'].configure(
+                        text=f"Tanıma Doğruluğu: {accuracy:.1f}%",
+                        text_color=color
+                    )
+            
+            elif self.phase == 3:
+                # AŞAMA 3 GÜNCELLEMELERİ - COLOR & SHAPE FIX
+
+                # 🅰️🅱️ Target Side güncelleme (çalışıyor)
+                if 'target_side' in data and 'target_side' in self.dynamic_labels:
+                    target_side = data['target_side']
+                    side_display = {
+                        'A': '🅰️ A Tarafı',
+                        'B': '🅱️ B Tarafı'
+                    }
+                    side_color = {
+                        'A': '#00ff88',  # Yeşil
+                        'B': '#ff8844'   # Turuncu
+                    }
+                    
+                    display_text = side_display.get(target_side, f"❓ {target_side}")
+                    text_color = side_color.get(target_side, '#cccccc')
+                    
+                    self.dynamic_labels['target_side'].configure(
+                        text=f"Platform: {display_text}",
+                        text_color=text_color
+                    )
+
+                # 🔴 TARGET COLOR FIX - Hem WebSocket formatını hem GUI formatını destekle
+                if 'target_color' in data and 'target_color' in self.dynamic_labels:
+                    color_value = data['target_color']
+                    
+                    # ✅ ÇOKLU FORMAT DESTEĞİ
+                    color_display_map = {
+                        # WebSocket Server formatı (R/G/B)
+                        'R': ('🔴 Kırmızı', '#ff4444'),
+                        'G': ('🟢 Yeşil', '#44ff44'),
+                        'B': ('🔵 Mavi', '#4488ff'),
+                        
+                        # GUI formatı (full names)
+                        'red': ('🔴 Kırmızı', '#ff4444'),
+                        'green': ('🟢 Yeşil', '#44ff44'),
+                        'blue': ('🔵 Mavi', '#4488ff'),
+                        
+                        # Diğer renkler
+                        'yellow': ('🟡 Sarı', '#ffff44'),
+                        'orange': ('🟠 Turuncu', '#ff8844'),
+                        'purple': ('🟣 Mor', '#8844ff'),
+                        'unknown': ('❓ Bilinmiyor', '#cccccc')
+                    }
+                    
+                    # Color mapping'i uygula
+                    if color_value in color_display_map:
+                        display_text, text_color = color_display_map[color_value]
+                    else:
+                        # Hiçbir format eşleşmezse, raw değeri göster
+                        display_text = f"❓ {color_value}"
+                        text_color = '#cccccc'
+                    
+                    self.dynamic_labels['target_color'].configure(
+                        text=f"Hedef Renk: {display_text}",
+                        text_color=text_color
+                    )
+                    
+                    print(f"[GUI] Color güncellendi: '{color_value}' → '{display_text}'")
+                
+                # 🔵 TARGET SHAPE FIX - Hem WebSocket formatını hem GUI formatını destekle
+                if 'target_shape' in data and 'target_shape' in self.dynamic_labels:
+                    shape_value = data['target_shape']
+                    
+                    # ✅ ÇOKLU FORMAT DESTEĞİ
+                    shape_display_map = {
+                        # WebSocket Server formatı (T/C/S)
+                        'T': '🔺 Üçgen',
+                        'C': '⭕ Daire', 
+                        'S': '🟫 Kare',
+                        
+                        # GUI formatı (full names)
+                        'triangle': '🔺 Üçgen',
+                        'circle': '⭕ Daire',
+                        'square': '🟫 Kare',
+                        
+                        # Diğer şekiller
+                        'rectangle': '🟫 Dikdörtgen',
+                        'unknown': '❓ Bilinmiyor'
+                    }
+                    
+                    # Shape mapping'i uygula
+                    if shape_value in shape_display_map:
+                        display_text = shape_display_map[shape_value]
+                    else:
+                        # Hiçbir format eşleşmezse, raw değeri göster
+                        display_text = f"❓ {shape_value}"
+                    
+                    self.dynamic_labels['target_shape'].configure(
+                        text=f"Hedef Şekil: {display_text}"
+                    )
+                    
+                    print(f"[GUI] Shape güncellendi: '{shape_value}' → '{display_text}'")
+
+                # QR kod ve angajman (bunlar çalışıyor)
+                if 'qr_code_detected' in data and 'qr_code_detected' in self.dynamic_labels:
+                    qr_detected = data['qr_code_detected']
+                    if qr_detected:
+                        self.dynamic_labels['qr_code_detected'].configure(
+                            text="QR Kod: ✅ Tespit Edildi",
+                            text_color="#00ff88"
+                        )
+                    else:
+                        self.dynamic_labels['qr_code_detected'].configure(
+                            text="QR Kod: ❌ Tespit Edilmedi",
+                            text_color="#ff6b6b"
+                        )
+                
+                if 'engagement_authorized' in data and 'engagement_authorized' in self.dynamic_labels:
+                    authorized = data['engagement_authorized']
+                    if authorized:
+                        self.dynamic_labels['engagement_authorized'].configure(
+                            text="Angajman: ✅ Yetkili",
+                            text_color="#00ff88"
+                        )
+                    else:
+                        self.dynamic_labels['engagement_authorized'].configure(
+                            text="Angajman: ❌ Yetkisiz",
+                            text_color="#ff6b6b"
+                        )
+            
+        except Exception as e:
+            print(f"[GUI] update_phase_data hatası: {e}")
+            import traceback
+            traceback.print_exc()
+
 
 class CoordinatesModule(BaseModule):
     """Koordinat bilgileri modülü"""
@@ -607,6 +672,7 @@ class WeaponModule(BaseModule):
     def __init__(self, parent):
         super().__init__(parent, "MÜHİMMAT SİSTEMİ")
         self.app_controller = None  # EKLE
+        self.manual_locked = False  # YENİ: Manuel seçim kilidi
 
         self.control_mode = "Otomatik"
         self.selected_weapon = "Lazer"
@@ -673,20 +739,58 @@ class WeaponModule(BaseModule):
         self.pellet_status_btn.pack(side="right")
 
     def change_control_mode(self, mode):
+        """Kontrol modu değiştir - BIG LOGGING"""
+        old_mode = getattr(self, 'control_mode', 'Unknown')
         self.control_mode = mode
+        
+        # ✅ BÜYÜK VE GÖRÜNÜR LOG
+        print(f"\n{'+'*50}")
+        print(f"🔄 MODE CHANGE: {old_mode} → {mode}")
+        print(f"{'+'*50}")
+        
         if mode == "Otomatik":
             self.selected_weapon = "Lazer"
+            print(f"🎯 Otomatik mod: Varsayılan Lazer seçildi")
+            
+            if self.app_controller:
+                self.app_controller.send_command("select_weapon", "Lazer")
+                
+        else:  # Manuel mod
+            if not hasattr(self, 'selected_weapon') or not self.selected_weapon:
+                self.selected_weapon = "Lazer"
+                
+            print(f"✋ Manuel mod: Seçili silah = {self.selected_weapon}")
+            
+            if self.app_controller:
+                self.app_controller.send_command("select_weapon", self.selected_weapon)
+        
         self.update_weapon_selection(self.selected_weapon)
         self.update_weapon_status()
 
     def set_manual_weapon(self, weapon):
+        """Manuel silah seçimi - BIG LOGGING"""
         if self.control_mode == "Manuel":
             self.selected_weapon = weapon
             self.update_weapon_selection(weapon)
             self.update_weapon_status()
-            # App controller'a gönder
+            
+            # ✅ BÜYÜK VE GÖRÜNÜR LOG
+            print(f"\n{'*'*50}")
+            print(f"🎮 GUI WEAPON SELECTION: {weapon}")
+            print(f"🎮 Control Mode: {self.control_mode}")
+            print(f"{'*'*50}")
+            
             if self.app_controller:
                 self.app_controller.send_command("select_weapon", weapon)
+            
+            print(f"[WEAPON] Manuel silah seçildi: {weapon}")
+
+    def debug_current_selection(self):
+        """Debug için mevcut silah seçimini yazdır"""
+        print(f"\n[WEAPON DEBUG] 🔫 Mevcut Durum:")
+        print(f"   Kontrol Modu: {self.control_mode}")
+        print(f"   Seçili Silah: {self.selected_weapon}")
+        print(f"   App Controller: {'Var' if self.app_controller else 'Yok'}")
 
     def update_weapon_selection(self, weapon_type):
         self.weapon_label.configure(text=f"Seçili: {weapon_type}")
@@ -697,6 +801,20 @@ class WeaponModule(BaseModule):
 
         self.laser_status_btn.configure(text_color="#00ff88" if laser_active else "#888888")
         self.pellet_status_btn.configure(text_color="#00ff88" if pellet_active else "#888888")
+
+    def lock_manual_selection(self):
+        """Manuel seçimi kilitle - Raspberry Pi güncellemelerini engelle"""
+        self.manual_locked = True
+        print(f"[WEAPON] Manuel seçim kilitlendi: {self.selected_weapon}")
+
+    def unlock_manual_selection(self):
+        """Manuel seçim kilidini aç"""
+        self.manual_locked = False
+        print("[WEAPON] Manuel seçim kilidi açıldı")
+
+    def is_manual_locked(self):
+        """Manuel seçim kilitli mi kontrol et"""
+        return getattr(self, 'manual_locked', False)
 
 
 
@@ -717,7 +835,7 @@ class UpdatedCameraModule:
         self.target_locked = False
         self.recording = False
         
-        # Hedef pozisyonu (simülasyon + gerçek veri)
+        # Hedef pozisyonu
         self.target_x = 320
         self.target_y = 240
         
@@ -733,6 +851,12 @@ class UpdatedCameraModule:
         # Frame yönetimi
         self.current_frame = None
         self.default_frame_created = False
+        self._frame_counter = 0
+        
+        # Boyutlar belirlendi mi?
+        self.dimensions_set = False
+        self.display_width = None
+        self.display_height = None
         
         self.setup_ui()
         self._register_app_callbacks()
@@ -741,7 +865,7 @@ class UpdatedCameraModule:
     
     def setup_ui(self):
         """Kamera modülü UI'ını oluştur"""
-        # Ana kamera container
+        # Ana kamera container - padding yok
         self.camera_container = ctk.CTkFrame(
             self.parent, 
             fg_color="#000000",
@@ -751,17 +875,15 @@ class UpdatedCameraModule:
         )
         self.camera_container.pack(fill="both", expand=True, padx=5, pady=5)
         
-        # Kamera görüntü alanı
+        # Kamera görüntü alanı - direkt container'a yapış
         self.camera_label = ctk.CTkLabel(
             self.camera_container,
             text="",
-            width=500,
-            height=350
+            fg_color="#000000",
+            corner_radius=0
         )
-        self.camera_label.pack(fill="both", expand=True, padx=10, pady=10)
-        
-        # İlk başta default frame göster
-        self._create_default_frame()
+        # İlk boyut ayarı - sonra pack
+        self.camera_label.pack(fill="both", expand=True, padx=2, pady=2)
         
         # Alt durum çubuğu
         self._create_status_bar()
@@ -769,7 +891,60 @@ class UpdatedCameraModule:
         # Kamera kontrolleri
         self._create_camera_controls()
         
+        # Boyutları hesapla (GUI tamamen yüklendikten sonra)
+        self.parent.after(100, self._calculate_display_dimensions)
+        
         print("[CAMERA MODULE] UI oluşturuldu")
+    
+
+    def _calculate_display_dimensions(self):
+        """Görüntü boyutlarını hesapla"""
+        if self.dimensions_set:
+            return
+            
+        # Container'ın gerçek boyutlarını al
+        self.parent.update_idletasks()
+        
+        total_width = self.camera_container.winfo_width()
+        total_height = self.camera_container.winfo_height()
+        
+        # Kontroller ve durum çubuğu için alan çıkar
+        # Border (2*2) + minimal padding (2*2) = 8 pixel
+        self.display_width = total_width - 8
+        
+        # Status bar (~40) + controls (~40) + border (4) + padding (4) = ~88
+        self.display_height = total_height - 88
+        
+        # Minimum kontrol
+        if self.display_width < 100 or self.display_height < 100:
+            # Varsayılan boyutlar
+            self.display_width = 735
+            self.display_height = 490
+        
+        self.dimensions_set = True
+        print(f"[CAMERA MODULE] Display boyutları: {self.display_width}x{self.display_height}")
+        
+        # Default frame'i bu boyutlarda oluştur
+        self._create_default_frame()
+
+    def _set_fixed_dimensions(self):
+        """Sabit boyutları bir kere belirle"""
+        # Container'ın ilk boyutlarını al
+        container_width = self.camera_container.winfo_width()
+        container_height = self.camera_container.winfo_height()
+        
+        # Kontroller için alan çıkar
+        self.fixed_width = container_width - 10
+        self.fixed_height = container_height - 130  # Durum çubuğu + kontroller
+        
+        # Minimum boyutlar
+        if self.fixed_width < 500:
+            self.fixed_width = 700
+        if self.fixed_height < 350:
+            self.fixed_height = 450
+        
+        print(f"[CAMERA MODULE] Sabit boyutlar belirlendi: {self.fixed_width}x{self.fixed_height}")
+    
     
     def _register_app_callbacks(self):
         """AppController callback'lerini kaydet"""
@@ -787,48 +962,41 @@ class UpdatedCameraModule:
     def _create_default_frame(self):
         """Varsayılan kamera frame'i oluştur"""
         try:
-            # Siyah arka plan ile basit metin
-            img = Image.new('RGB', (500, 350), color='black')
+            if not self.dimensions_set:
+                return
+                
+            # Display boyutlarında siyah frame
+            img = Image.new('RGB', (self.display_width, self.display_height), color='black')
             
-            # PIL üzerine metin yaz
+            # Metin ekle
             from PIL import ImageDraw, ImageFont
             draw = ImageDraw.Draw(img)
             
-            # Merkeze "GÖRÜNTÜ YOK" yaz
             text = "GÖRÜNTÜ YOK"
             try:
-                # Windows için
                 font = ImageFont.truetype("arial.ttf", 24)
             except:
-                try:
-                    # Linux için
-                    font = ImageFont.truetype("DejaVuSans.ttf", 24)
-                except:
-                    # Varsayılan font
-                    font = ImageFont.load_default()
+                font = ImageFont.load_default()
             
-            # Metin boyutunu al ve ortala
+            # Metni ortala
             bbox = draw.textbbox((0, 0), text, font=font)
             text_width = bbox[2] - bbox[0]
             text_height = bbox[3] - bbox[1]
             
-            x = (500 - text_width) // 2
-            y = (350 - text_height) // 2
+            x = (self.display_width - text_width) // 2
+            y = (self.display_height - text_height) // 2
             
             draw.text((x, y), text, fill='white', font=font)
             
-            # Tkinter PhotoImage'a çevir
+            # PhotoImage oluştur ve göster
             self.current_frame = ImageTk.PhotoImage(img)
             self.camera_label.configure(image=self.current_frame)
+            self.camera_label.image = self.current_frame
             
-   
             self.default_frame_created = True
-            print("[CAMERA MODULE] Varsayılan frame oluşturuldu")
             
         except Exception as e:
-            print(f"[CAMERA MODULE] Varsayılan frame oluşturma hatası: {e}")
-            # Fallback: sadece metin göster
-            self.camera_label.configure(text="GÖRÜNTÜ YOK", font=("Arial", 20))
+            print(f"[CAMERA MODULE] Default frame hatası: {e}")
     
 
 
@@ -862,27 +1030,60 @@ class UpdatedCameraModule:
                 font=("Arial", 10, "bold"), tags="target"
             )
     
+    # UpdatedCameraModule için basit tam ekran çözümü
+
     def _on_frame_received(self, frame_data):
         """Raspberry Pi'den frame alındığında"""
         try:
+            # Boyutlar henüz belirlenmemişse bekle
+            if not self.dimensions_set or not self.display_width or not self.display_height:
+                return
+                
+            if not hasattr(self, 'camera_label') or not self.camera_label:
+                return
+                
             if isinstance(frame_data, np.ndarray):
                 # NumPy array'i PIL Image'a çevir
                 pil_image = Image.fromarray(frame_data)
                 
-                # Boyutlandır
-                pil_image = pil_image.resize((500, 350), Image.Resampling.LANCZOS)
+                # Tam olarak display boyutlarına sığdır
+                pil_image = pil_image.resize(
+                    (self.display_width, self.display_height), 
+                    Image.Resampling.LANCZOS
+                )
                 
                 # Tkinter PhotoImage'a çevir
-                self.current_frame = ImageTk.PhotoImage(pil_image)
+                photo_image = ImageTk.PhotoImage(pil_image)
                 
-                # Label'ı güncelle
-                self.camera_label.configure(image=self.current_frame)
-      
+                # Label'ı güncelle (thread-safe)
+                def update_label():
+                    try:
+                        if self.camera_label and self.camera_label.winfo_exists():
+                            self.camera_label.configure(image=photo_image)
+                            self.camera_label.image = photo_image
+                            self.current_frame = photo_image
+                    except:
+                        pass
                 
-                print("[CAMERA MODULE] Frame güncellendi")
+                # Main thread'de güncelle
+                if self.parent.winfo_exists():
+                    self.parent.after(0, update_label)
+                
+                # Frame sayacı
+                self._frame_counter += 1
                 
         except Exception as e:
-            print(f"[CAMERA MODULE] Frame işleme hatası: {e}")
+            if self._frame_counter % 100 == 0:  # Her 100 frame'de bir hata logla
+                print(f"[CAMERA MODULE] Frame işleme hatası: {e}")
+
+    def _update_frame_safe(self, photo_image):
+        """Thread-safe frame güncelleme"""
+        try:
+            if hasattr(self, 'camera_label') and self.camera_label:
+                self.camera_label.configure(image=photo_image)
+                self.camera_label.image = photo_image
+        except:
+            pass
     
     def _on_connection_changed(self, connection_data):
         """Raspberry Pi bağlantı durumu değiştiğinde"""
@@ -926,7 +1127,7 @@ class UpdatedCameraModule:
             fg_color="#1a1a1a",
             height=40
         )
-        status_frame.pack(fill="x", side="bottom", padx=5, pady=5)
+        status_frame.pack(fill="x", side="bottom", padx=2, pady=2)
         status_frame.pack_propagate(False)
         
         # Sol taraf - Sistem durumu
@@ -971,7 +1172,7 @@ class UpdatedCameraModule:
         )
         phase_label.pack(side="right", padx=10)
         
-        # Zaman güncelleme thread'i
+        # Zaman güncelleme
         self._start_time_update()
     
     def _start_time_update(self):
@@ -991,8 +1192,9 @@ class UpdatedCameraModule:
     
     def _create_camera_controls(self):
         """Kamera kontrol butonları"""
-        controls_frame = ctk.CTkFrame(self.camera_container, fg_color="transparent")
-        controls_frame.pack(fill="x", padx=10, pady=5)
+        controls_frame = ctk.CTkFrame(self.camera_container, fg_color="transparent", height=35)
+        controls_frame.pack(fill="x", padx=5, pady=2)
+        controls_frame.pack_propagate(False)
         
         # Kayıt butonu
         self.record_button = ctk.CTkButton(
@@ -1202,76 +1404,18 @@ class ControlModule(BaseModule):
         self.create_common_controls()
             
     def create_phase1_controls(self):
-            """Aşama 1 kontrolleri - BALLOON HUNTING"""
-            # Balon arama başlat
-            self.balloon_hunt_button = ctk.CTkButton(
-                self.frame,
-                text="🎈 BALON AVINI BAŞLAT",
-                fg_color="#4CAF50",
-                hover_color="#388E3C",
-                height=40,
-                command=self.start_balloon_hunt
-            )
-            self.balloon_hunt_button.pack(fill="x", padx=10, pady=5)
-            
-            # Otomatik mod
-            self.auto_hunt_button = ctk.CTkButton(
-                self.frame,
-                text="🤖 OTOMATİK AV",
-                fg_color="#FF9800",
-                hover_color="#F57C00",
-                height=35,
-                command=self.toggle_auto_hunt
-            )
-            self.auto_hunt_button.pack(fill="x", padx=10, pady=2)
+        """Aşama 1 kontrolleri - Sadece temel kontroller"""
+        # Aşama 1'de özel buton yok, sadece ortak kontrollere (ateş + kalibrasyon) sahip
+        pass
             
     def create_phase2_controls(self):
-            """Aşama 2 kontrolleri - FRIEND/FOE IDENTIFICATION"""
-            # Düşman tespit sistemi
-            self.foe_detection_button = ctk.CTkButton(
-                self.frame,
-                text="👥 DÜŞMAN TESPİT BAŞLAT",
-                fg_color="#FF9800",
-                hover_color="#F57C00",
-                height=40,
-                command=self.start_foe_detection
-            )
-            self.foe_detection_button.pack(fill="x", padx=10, pady=5)
+        """Aşama 2 kontrolleri - Sadece kalibrasyon"""
+        # Aşama 2'de özel buton yok, sadece ortak kontrollerden kalibrasyon
+        pass
             
-            # Sınıflandırma ayarları
-            self.classification_button = ctk.CTkButton(
-                self.frame,
-                text="🔍 SINIFLANDIRMA AYARLARI",
-                fg_color="#2196F3",
-                hover_color="#1976D2",
-                height=35,
-                command=self.open_classification_settings
-            )
-            self.classification_button.pack(fill="x", padx=10, pady=2)
             
     def create_phase3_controls(self):
             """Aşama 3 kontrolleri - QR CODE & ENGAGEMENT"""
-            # QR kod okuma
-            self.qr_read_button = ctk.CTkButton(
-                self.frame,
-                text="📱 QR KOD OKU",
-                fg_color="#9C27B0",
-                hover_color="#7B1FA2",
-                height=40,
-                command=self.read_qr_code
-            )
-            self.qr_read_button.pack(fill="x", padx=10, pady=5)
-            
-            # Platform değiştir
-            self.platform_button = ctk.CTkButton(
-                self.frame,
-                text="🔄 PLATFORM DEĞİŞTİR",
-                fg_color="#607D8B",
-                hover_color="#455A64",
-                height=35,
-                command=self.switch_platform
-            )
-            self.platform_button.pack(fill="x", padx=10, pady=2)
             
             # Angajman başlat
             self.engagement_button = ctk.CTkButton(
@@ -1285,30 +1429,30 @@ class ControlModule(BaseModule):
             self.engagement_button.pack(fill="x", padx=10, pady=5)
             
     def create_common_controls(self):
-            """Ortak kontroller"""
-            # Ateş butonu
-            if self.phase in [0, 1, 2, 3]:  # Tüm aşamalarda ateş butonu
-                self.fire_button = ctk.CTkButton(
-                    self.frame,
-                    text="🔥 ATEŞ!",
-                    font=ctk.CTkFont(size=16, weight="bold"),
-                    fg_color="#ff4444",
-                    hover_color="#cc3333",
-                    height=50,
-                    command=self.fire_weapon
-                )
-                self.fire_button.pack(fill="x", padx=10, pady=10)
-            
-            # Kalibrasyon
-            calibrate_button = ctk.CTkButton(
+        """Ortak kontroller"""
+        # Ateş butonu - Sadece Aşama 0 ve 1'de
+        if self.phase in [0, 1]:  # Sadece Aşama 0 ve 1'de ateş butonu
+            self.fire_button = ctk.CTkButton(
                 self.frame,
-                text="🔧 KALİBRASYON",
-                fg_color="#4499ff",
-                hover_color="#3377cc",
-                height=35,
-                command=self.calibrate
+                text="🔥 ATEŞ!",
+                font=ctk.CTkFont(size=16, weight="bold"),
+                fg_color="#ff4444",
+                hover_color="#cc3333",
+                height=50,
+                command=self.fire_weapon
             )
-            calibrate_button.pack(fill="x", padx=10, pady=2)
+            self.fire_button.pack(fill="x", padx=10, pady=10)
+        
+        # Kalibrasyon - Tüm aşamalarda
+        calibrate_button = ctk.CTkButton(
+            self.frame,
+            text="🔧 KALİBRASYON",
+            fg_color="#4499ff",
+            hover_color="#3377cc",
+            height=35,
+            command=self.calibrate
+        )
+        calibrate_button.pack(fill="x", padx=10, pady=2)
         
         # ========== AŞAMA 1 KOMUTLARI ==========
     def start_balloon_hunt(self):
@@ -1941,52 +2085,54 @@ class SkyShieldMainGUI:
         except:
             pass
 
-    # ================================
-    # YENİ THREADING FİX METODLARI  
-    # ================================
-    
+
+
     def _register_app_callbacks(self):
-        """AppController callback'lerini kaydet - THREAD SAFE VERSION"""
-        # Thread-safe wrapper fonksiyonlar
+         
+        
         def safe_data_callback(data):
             try:
-                if hasattr(self, 'root') and self.root and self.root.winfo_exists():
+                if (hasattr(self, 'root') and self.root and 
+                    hasattr(self.root, 'winfo_exists') and self.root.winfo_exists()):
                     self.root.after_idle(lambda: self._safe_update_gui(data))
             except:
                 pass
         
         def safe_log_callback(log_entry):
             try:
-                if hasattr(self, 'root') and self.root and self.root.winfo_exists():
+                if (hasattr(self, 'root') and self.root and 
+                    hasattr(self.root, 'winfo_exists') and self.root.winfo_exists()):
                     self.root.after_idle(lambda: self._safe_add_log(log_entry))
             except:
                 pass
         
         def safe_connection_callback(connection_data):
             try:
-                if hasattr(self, 'root') and self.root and self.root.winfo_exists():
+                if (hasattr(self, 'root') and self.root and 
+                    hasattr(self.root, 'winfo_exists') and self.root.winfo_exists()):
                     self.root.after_idle(lambda: self._safe_connection_update(connection_data))
             except:
                 pass
         
         def safe_error_callback(error_message):
             try:
-                if hasattr(self, 'root') and self.root and self.root.winfo_exists():
+                if (hasattr(self, 'root') and self.root and 
+                    hasattr(self.root, 'winfo_exists') and self.root.winfo_exists()):
                     self.root.after_idle(lambda: self._safe_error_update(error_message))
             except:
                 pass
         
-        # Callback'leri kaydet
+        # Tamamen sessiz kayıt
         self.app_controller.register_callback("data_updated", safe_data_callback)
         self.app_controller.register_callback("log_added", safe_log_callback)
         self.app_controller.register_callback("raspberry_connection_changed", safe_connection_callback)
         self.app_controller.register_callback("raspberry_error", safe_error_callback)
-
-
+  
+  
     def _safe_update_gui(self, data):
-        """Thread-safe GUI güncellemesi - PHASE-SPECIFIC DATA SUPPORT"""
+        """CLEAN: Thread-safe GUI güncellemesi - Sessiz versiyon"""
         try:
-            print(f"[DEBUG] GUI'ye gelen veri: {data}")
+            # Sessiz çalışma - sadece GUI güncellemeleri
             
             # ========== ORTAK VERİLER ==========
             if hasattr(self, 'coords_module') and data:
@@ -2009,65 +2155,46 @@ class SkyShieldMainGUI:
                     self.status_module.update_progress(0.0)
             
             # ========== CONTROLLER DURUMU (Aşama 0) ==========
-            if (hasattr(self, 'target_module') and 
-                hasattr(self.target_module, 'update_controller_status') and
-                self.phase == 0):
-                
-                print(f"[MAIN GUI] Controller verisi gönderiliyor: {data.get('controller_connected', 'EKSIK')}")
+            if (self.phase == 0 and 
+                hasattr(self.target_module, 'update_controller_status')):
                 self.target_module.update_controller_status(data)
             
-            # ========== YENİ: AŞAMA-SPESİFİK VERİLER ==========W
-            if hasattr(self, 'target_module') and hasattr(self.target_module, 'update_phase_data'):
+            # ========== AŞAMA-SPESİFİK VERİLER ==========
+            if hasattr(self.target_module, 'update_phase_data'):
                 self.target_module.update_phase_data(data)
-                print(f"[MAIN GUI] Aşama {self.phase} verileri güncellendi")
             
-            # ========== MÜHİMMAT SİSTEMİ GÜNCELLEMESİ ==========
+            # ========== MÜHİMMAT SİSTEMİ ==========
             if hasattr(self, 'weapon_module') and 'weapon' in data:
-                # Raspberry Pi'den gelen mühimmat bilgisini GUI'ye yansıt
-                weapon_type = data['weapon']
-                weapon_map = {
-                    'Laser': 'Lazer',
-                    'Airgun': 'Boncuk', 
-                    'Auto': 'Otomatik',
-                    'None': 'Seçilmedi'
-                }
-                gui_weapon = weapon_map.get(weapon_type, weapon_type)
-                self.weapon_module.update_weapon_selection(gui_weapon)
-                print(f"[MAIN GUI] Mühimmat güncellendi: {gui_weapon}")
-            
+                # Sadece otomatik modda Raspberry Pi'den gelen veriyi kullan
+                if (hasattr(self.weapon_module, 'control_mode') and 
+                    self.weapon_module.control_mode == "Otomatik"):
+                    weapon_type = data['weapon']
+                    weapon_map = {
+                        'Laser': 'Lazer',
+                        'Airgun': 'Boncuk', 
+                        'Auto': 'Otomatik',
+                        'None': 'Seçilmedi'
+                    }
+                    gui_weapon = weapon_map.get(weapon_type, weapon_type)
+                    self.weapon_module.update_weapon_selection(gui_weapon)
+                # Manuel modda kullanıcı seçimini koru, Raspberry Pi verisini ignore et
         except Exception as e:
-            print(f"[MAIN GUI] GUI güncelleme hatası: {e}")
-   
-   
-   
+            print(f"[MAIN GUI] ❌ GUI güncelleme hatası: {e}")
+    
+    
     def _safe_add_log(self, log_entry):
-            """Thread-safe log ekleme - PHASE-AWARE LOGGING"""
-            try:
-                if hasattr(self, 'log_module'):
-                    # Log entry'den mesajı çıkar
-                    parts = log_entry.split('] ', 2)
-                    if len(parts) >= 3:
-                        message = parts[2]
-                        
-                        # Aşama-spesifik log prefix'i ekle
-                        phase_prefix = f"[AŞAMA {self.phase}] " if self.phase > 0 else "[MANUEL] "
-                        
-                        # Özel log mesajları için renklendirme
-                        if "balon" in message.lower() or "balloon" in message.lower():
-                            message = f"🎈 {message}"
-                        elif "düşman" in message.lower() or "enemy" in message.lower():
-                            message = f"🎯 {message}"
-                        elif "qr" in message.lower():
-                            message = f"📱 {message}"
-                        elif "angajman" in message.lower() or "engagement" in message.lower():
-                            message = f"⚡ {message}"
-                        
-                        self.log_module.add_log(f"{phase_prefix}{message}")
-                    else:
-                        self.log_module.add_log(log_entry)
-            except Exception as e:
-                print(f"[MAIN GUI] Log ekleme hatası: {e}")
-                traceback.print_exc()  # ← Detaylı hata mesajı
+        """CLEAN: Sessiz log ekleme"""
+        try:
+            if hasattr(self, 'log_module'):
+                parts = log_entry.split('] ', 2)
+                if len(parts) >= 3:
+                    message = parts[2]
+                    phase_prefix = f"[AŞAMA {self.phase}] " if self.phase > 0 else "[MANUEL] "
+                    self.log_module.add_log(f"{phase_prefix}{message}")
+                else:
+                    self.log_module.add_log(log_entry)
+        except:
+         pass    
 
 
     def _safe_connection_update(self, connection_data):
@@ -2097,22 +2224,7 @@ class SkyShieldMainGUI:
         except Exception as e:
             print(f"[MAIN GUI] Hata işleme hatası: {e}")
 
-    # ESKİ METODLARI DEVRE DIŞI BIRAK
-    def _on_data_updated(self, data):
-        """ESKİ VERSİYON - Artık kullanılmıyor"""
-        pass
-
-    def _on_log_added(self, log_entry):
-        """ESKİ VERSİYON - Artık kullanılmıyor"""
-        pass
-
-    def _on_raspberry_connection_changed(self, connection_data):
-        """ESKİ VERSİYON - Artık kullanılmıyor"""
-        pass
-
-    def _on_raspberry_error(self, error_message):
-        """ESKİ VERSİYON - Artık kullanılmıyor"""
-        pass
+   
         
     def run(self):
         self.root.mainloop()

@@ -256,30 +256,26 @@ class WebSocketCommunicationClient:
                 except:
                     pass
             return False
-    
+
+    # websocket_client.py içindeki _convert_raspberry_to_gui_format metodunda düzeltme
 
     def _convert_raspberry_to_gui_format(self, raspberry_data: Dict[str, Any]) -> Dict[str, Any]:
-        """Raspberry Pi formatını GUI formatına çevir - ENHANCED DEBUG"""
+        """Raspberry Pi formatını GUI formatına çevir - CONDITIONAL LOGGING"""
         gui_data = {}
         
         try:
-            print(f"[WS CLIENT] 🔍 Ham Raspberry verisi: {raspberry_data}")
-            
             # ========== ORTAK SİSTEM VERİLERİ ==========
             if 'system_active' in raspberry_data:
                 gui_data['system_active'] = raspberry_data['system_active']
                 gui_data['active'] = raspberry_data['system_active']
-                print(f"[WS CLIENT] ✅ System active: {raspberry_data['system_active']}")
             
             if 'phase_mode' in raspberry_data:
                 gui_data['mode'] = raspberry_data['phase_mode']
                 gui_data['mode_name'] = self._get_mode_name(raspberry_data['phase_mode'])
-                print(f"[WS CLIENT] ✅ Phase mode: {raspberry_data['phase_mode']}")
             
             # Hedef bilgileri
             if 'target_detected_flag' in raspberry_data:
                 gui_data['target_locked'] = raspberry_data['target_detected_flag']
-                print(f"[WS CLIENT] ✅ Target locked: {raspberry_data['target_detected_flag']}")
             if 'x_target' in raspberry_data:
                 gui_data['target_x'] = float(raspberry_data['x_target'])
             if 'y_target' in raspberry_data:
@@ -288,73 +284,160 @@ class WebSocketCommunicationClient:
             # Açı bilgileri - PAN/TILT DOĞRUDAN
             if 'pan_angle' in raspberry_data:
                 gui_data['pan_angle'] = float(raspberry_data['pan_angle'])
-                print(f"[WS CLIENT] ✅ Pan angle: {raspberry_data['pan_angle']}")
             if 'tilt_angle' in raspberry_data:
                 gui_data['tilt_angle'] = float(raspberry_data['tilt_angle'])
-                print(f"[WS CLIENT] ✅ Tilt angle: {raspberry_data['tilt_angle']}")
             
             # ESKI global_angle formatı da destekle
             if 'global_angle' in raspberry_data:
                 gui_data['pan_angle'] = float(raspberry_data['global_angle'])
-                print(f"[WS CLIENT] ✅ Global angle (pan): {raspberry_data['global_angle']}")
             if 'global_tilt_angle' in raspberry_data:
                 gui_data['tilt_angle'] = float(raspberry_data['global_tilt_angle'])
-                print(f"[WS CLIENT] ✅ Global tilt angle: {raspberry_data['global_tilt_angle']}")
             
             # Mühimmat
             if 'weapon' in raspberry_data:
                 weapon_map = {'L': 'Laser', 'A': 'Airgun', 'E': 'None', 'None': 'Auto'}
                 gui_data['weapon'] = weapon_map.get(raspberry_data['weapon'], 'Auto')
-                print(f"[WS CLIENT] ✅ Weapon: {gui_data['weapon']}")
             
             # Controller durumu
             if 'controller_connected' in raspberry_data:
                 gui_data['controller_connected'] = bool(raspberry_data['controller_connected'])
-                print(f"[WS CLIENT] ✅ Controller connected: {gui_data['controller_connected']}")
             
             # ========== AŞAMA 1 VERİLERİ ==========
             if 'targets_detected' in raspberry_data:
                 gui_data['targets_detected'] = int(raspberry_data['targets_detected'])
-                print(f"[WS CLIENT] 🎈 AŞAMA 1 - targets_detected: {gui_data['targets_detected']}")
             if 'targets_destroyed' in raspberry_data:
                 gui_data['targets_destroyed'] = int(raspberry_data['targets_destroyed'])
-                print(f"[WS CLIENT] 🎈 AŞAMA 1 - targets_destroyed: {gui_data['targets_destroyed']}")
             if 'balloon_count' in raspberry_data:
                 gui_data['balloon_count'] = int(raspberry_data['balloon_count'])
-                print(f"[WS CLIENT] 🎈 AŞAMA 1 - balloon_count: {gui_data['balloon_count']}")
             
             # ========== AŞAMA 2 VERİLERİ ==========
             if 'friend_targets' in raspberry_data:
                 gui_data['friend_targets'] = int(raspberry_data['friend_targets'])
-                print(f"[WS CLIENT] 🔍 AŞAMA 2 - friend_targets: {gui_data['friend_targets']}")
             if 'enemy_targets' in raspberry_data:
                 gui_data['enemy_targets'] = int(raspberry_data['enemy_targets'])
-                print(f"[WS CLIENT] 🔍 AŞAMA 2 - enemy_targets: {gui_data['enemy_targets']}")
             if 'enemy_destroyed' in raspberry_data:
                 gui_data['enemy_destroyed'] = int(raspberry_data['enemy_destroyed'])
-                print(f"[WS CLIENT] 🔍 AŞAMA 2 - enemy_destroyed: {gui_data['enemy_destroyed']}")
             if 'classification_accuracy' in raspberry_data:
                 gui_data['classification_accuracy'] = float(raspberry_data['classification_accuracy'])
-                print(f"[WS CLIENT] 🔍 AŞAMA 2 - classification_accuracy: {gui_data['classification_accuracy']}")
             
-            # ========== AŞAMA 3 VERİLERİ ==========
+            # ========== AŞAMA 3 VERİLERİ - CONDITIONAL LOGGING ==========
+            
+            # ✅ SADECE AŞAMA 3'TEYKEN LOG GÖSTER
+            current_phase = raspberry_data.get('phase_mode', gui_data.get('mode', 0))
+            is_phase_3 = (current_phase == 3)
+            
+            # 🔴 Renk dönüştürme: R/G/B → red/green/blue
             if 'target_color' in raspberry_data:
-                gui_data['target_color'] = str(raspberry_data['target_color'])
-                print(f"[WS CLIENT] ⚡ AŞAMA 3 - target_color: {gui_data['target_color']}")
+                raspberry_color = str(raspberry_data['target_color']).upper()
+                color_conversion = {
+                    'R': 'red',
+                    'G': 'green', 
+                    'B': 'blue'
+                }
+                gui_data['target_color'] = color_conversion.get(raspberry_color, 'unknown')
+                
+                # ✅ Log sadece Aşama 3'te göster
+                if is_phase_3:
+                    print(f"[WS CLIENT] ✅ target_color: {raspberry_color} → {gui_data['target_color']}")
+            
+            # 🔵 Şekil dönüştürme: T/C/S → triangle/circle/square
             if 'target_shape' in raspberry_data:
-                gui_data['target_shape'] = str(raspberry_data['target_shape'])
-                print(f"[WS CLIENT] ⚡ AŞAMA 3 - target_shape: {gui_data['target_shape']}")
+                raspberry_shape = str(raspberry_data['target_shape']).upper()
+                shape_conversion = {
+                    'T': 'triangle',
+                    'C': 'circle',
+                    'S': 'square'
+                }
+                gui_data['target_shape'] = shape_conversion.get(raspberry_shape, 'unknown')
+                
+                # ✅ Log sadece Aşama 3'te göster
+                if is_phase_3:
+                    print(f"[WS CLIENT] ✅ target_shape: {raspberry_shape} → {gui_data['target_shape']}")
+            
+            # 🟢 ✅ target_side dönüştürme
+            if 'target_side' in raspberry_data:
+                target_side_value = str(raspberry_data['target_side']).upper().strip()
+                gui_data['target_side'] = target_side_value  # A/B direkt aktar
+                
+                # ✅ Log sadece Aşama 3'te göster
+                if is_phase_3:
+                    print(f"[WS CLIENT] ✅ target_side: '{raspberry_data['target_side']}' → '{gui_data['target_side']}'")
+            else:
+                # Debug için kontrol et - sadece Aşama 3'te
+                if is_phase_3:
+                    phase3_fields = ['target_color', 'target_shape', 'qr_code_detected', 'engagement_authorized']
+                    if any(field in raspberry_data for field in phase3_fields):
+                        print(f"[WS CLIENT] ❌ target_side eksik ama diğer aşama 3 verileri var!")
+                        print(f"[WS CLIENT] 📋 Raspberry keys: {list(raspberry_data.keys())}")
+            
+            # ESKI current_platform formatı da destekle (backward compatibility)
             if 'current_platform' in raspberry_data:
-                gui_data['current_platform'] = str(raspberry_data['current_platform'])
-                print(f"[WS CLIENT] ⚡ AŞAMA 3 - current_platform: {gui_data['current_platform']}")
+                if 'target_side' not in gui_data:  # target_side yoksa current_platform'u kullan
+                    gui_data['target_side'] = str(raspberry_data['current_platform'])
+                    if is_phase_3:
+                        print(f"[WS CLIENT] 🔄 current_platform → target_side: {gui_data['target_side']}")
+            
             if 'qr_code_detected' in raspberry_data:
                 gui_data['qr_code_detected'] = bool(raspberry_data['qr_code_detected'])
-                print(f"[WS CLIENT] ⚡ AŞAMA 3 - qr_code_detected: {gui_data['qr_code_detected']}")
             if 'engagement_authorized' in raspberry_data:
                 gui_data['engagement_authorized'] = bool(raspberry_data['engagement_authorized'])
-                print(f"[WS CLIENT] ⚡ AŞAMA 3 - engagement_authorized: {gui_data['engagement_authorized']}")
             
-            print(f"[WS CLIENT] 🎯 Final GUI verisi: {gui_data}")
+            # ========== DEBUG: AŞAMA 3 VERİ DÖNÜŞTÜRME ÇIKTISI - SADECE AŞAMA 3'TE ==========
+            if is_phase_3 and any(key in raspberry_data for key in ['target_color', 'target_shape', 'target_side']):
+                print(f"\n[WS CLIENT] 🎯 AŞAMA 3 VERİ DÖNÜŞTÜRME:")
+                print(f"   RASPBERRY: color={raspberry_data.get('target_color', 'YOK')}, shape={raspberry_data.get('target_shape', 'YOK')}, side={raspberry_data.get('target_side', 'YOK')}")
+                print(f"   GUI: color={gui_data.get('target_color', 'YOK')}, shape={gui_data.get('target_shape', 'YOK')}, side={gui_data.get('target_side', 'YOK')}")
+            
+            # ========== AŞAMA-SPESİFİK LOG - 10 SANİYEDE BİR ==========
+            if not hasattr(self, 'last_log_time'):
+                self.last_log_time = 0
+            
+            import time
+            current_time = time.time()
+            if current_time - self.last_log_time >= 10:  # 10 saniyede bir
+                
+                # Mevcut aşamayı belirle
+                current_phase = gui_data.get('mode', 0)
+                active_status = "AKTİF" if gui_data.get('active') else "HAZIR"
+                weapon = gui_data.get('weapon', 'Auto')
+                pan = gui_data.get('pan_angle', 0)
+                tilt = gui_data.get('tilt_angle', 0)
+                
+                # Temel bilgileri yazdır
+                print(f"[WS CLIENT] 🎯 AŞAMA {current_phase} | {active_status} | {weapon} | Pan:{pan:.1f}° Tilt:{tilt:.1f}°")
+                
+                # Aşama-spesifik veriler
+                if current_phase == 0:
+                    # Manuel mod
+                    controller = "✅" if gui_data.get('controller_connected') else "❌"
+                    print(f"   🎮 Controller: {controller}")
+                    
+                elif current_phase == 1:
+                    # Aşama 1 - Balon avı
+                    detected = gui_data.get('targets_detected', 0)
+                    destroyed = gui_data.get('targets_destroyed', 0)
+                    balloons = gui_data.get('balloon_count', 0)
+                    success_rate = (destroyed/detected*100) if detected > 0 else 0
+                    print(f"   🎈 Tespit: {detected} | İmha: {destroyed} | Balon: {balloons} | Başarı: {success_rate:.1f}%")
+                    
+                elif current_phase == 2:
+                    # Aşama 2 - Dost/düşman
+                    friends = gui_data.get('friend_targets', 0)
+                    enemies = gui_data.get('enemy_targets', 0)
+                    destroyed = gui_data.get('enemy_destroyed', 0)
+                    accuracy = gui_data.get('classification_accuracy', 0)
+                    print(f"   🔍 Dost: {friends} | Düşman: {enemies} | İmha: {destroyed} | Doğruluk: {accuracy:.0f}%")
+                    
+                elif current_phase == 3:
+                    # Aşama 3 - QR kod ve angajman - target_side dahil
+                    color = gui_data.get('target_color', 'unknown')
+                    shape = gui_data.get('target_shape', 'unknown')
+                    target_side = gui_data.get('target_side', 'A')  # ✅ target_side kullan
+                    qr = "✅" if gui_data.get('qr_code_detected') else "❌"
+                    engagement = "✅" if gui_data.get('engagement_authorized') else "❌"
+                    print(f"   ⚡ Renk: {color} | Şekil: {shape} | Target Side: {target_side} | QR: {qr} | Angajman: {engagement}")
+                
+                self.last_log_time = current_time
             
         except Exception as e:
             print(f"[WS CLIENT] ❌ Veri dönüştürme hatası: {e}")
@@ -362,8 +445,7 @@ class WebSocketCommunicationClient:
             traceback.print_exc()
         
         return gui_data
-        
-        return gui_data
+    
     def _get_mode_name(self, mode: int) -> str:
         """Mod numarasını isme çevir"""
         mode_names = {

@@ -1,4 +1,4 @@
-# gui/communication/camera_stream_client.py
+# gui/communication/camera_stream_client.py - FIXED VERSION
 import requests
 import cv2
 import numpy as np
@@ -10,7 +10,7 @@ import io
 
 class CameraStreamClient:
     """
-    Raspberry Pi'den kamera stream'ini alan client
+    Raspberry Pi'den kamera stream'ini alan client - FIXED VERSION
     MJPEG formatında görüntü akışını işler
     """
     
@@ -92,7 +92,7 @@ class CameraStreamClient:
         print("[CAMERA STREAM] Stream durduruldu")
     
     def _stream_loop(self):
-        """Ana stream döngüsü"""
+        """Ana stream döngüsü - FIXED VERSION"""
         try:
             response = requests.get(self.stream_url, stream=True, timeout=10)
             
@@ -101,64 +101,84 @@ class CameraStreamClient:
             
             print("[CAMERA STREAM] MJPEG stream bağlantısı kuruldu")
             
-            # MJPEG boundary parser
-            boundary = None
+            # Buffer ve değişkenler
             buffer = b""
+            boundary = None
             
-            for chunk in response.iter_content(chunk_size=1024):
+            for chunk in response.iter_content(chunk_size=4096):  # Daha büyük chunk
                 if not self.streaming:
                     break
                 
                 buffer += chunk
                 
-                # Boundary bul
+                # Boundary'yi bul (ilk kez)
                 if boundary is None:
-                    boundary_pos = buffer.find(b'--')
-                    if boundary_pos != -1:
-                        boundary_end = buffer.find(b'\r\n', boundary_pos)
-                        if boundary_end != -1:
-                            boundary = buffer[boundary_pos:boundary_end]
-                            print(f"[CAMERA STREAM] Boundary bulundu: {boundary}")
+                    # Boundary genelde --frame şeklinde
+                    boundary_idx = buffer.find(b'--frame')
+                    if boundary_idx != -1:
+                        boundary = b'--frame'
+                        print(f"[CAMERA STREAM] Boundary bulundu: {boundary}")
                 
                 # Frame'leri ayıkla
-                if boundary:
-                    self._parse_mjpeg_frames(buffer, boundary)
-                    buffer = buffer[-1024:]  # Buffer'ı temiz tut
+                while boundary and len(buffer) > 1024:
+                    # Yeni frame başlangıcını bul
+                    start_idx = buffer.find(boundary)
+                    if start_idx == -1:
+                        break
+                    
+                    # Bir sonraki boundary'yi bul
+                    next_idx = buffer.find(boundary, start_idx + len(boundary))
+                    
+                    if next_idx == -1:
+                        # Henüz tam frame yok, daha fazla veri bekle
+                        break
+                    
+                    # Tam frame'i çıkar
+                    frame_data = buffer[start_idx:next_idx]
+                    
+                    # JPEG verilerini ayıkla
+                    jpeg_start = frame_data.find(b'\xff\xd8')
+                    jpeg_end = frame_data.find(b'\xff\xd9')
+                    
+                    if jpeg_start != -1 and jpeg_end != -1 and jpeg_end > jpeg_start:
+                        jpeg_data = frame_data[jpeg_start:jpeg_end + 2]
+                        
+                        # Frame'i decode et
+                        frame = self._decode_jpeg_frame(jpeg_data)
+                        if frame is not None:
+                            self.last_frame = frame
+                            self.frame_count += 1
+                            
+                            # FPS hesapla
+                            self._calculate_fps()
+                            
+                            # Callback'i tetikle
+                            if self.frame_callback:
+                                self.frame_callback(frame)
+                            
+                            # Debug log - her 30 frame'de bir
+                            if self.frame_count % 30 == 0:
+                                print(f"[CAMERA STREAM] Frame {self.frame_count} alındı")
+                    
+                    # İşlenen kısmı buffer'dan çıkar
+                    buffer = buffer[next_idx:]
+                
+                # Buffer'ı sınırla (memory leak önleme)
+                if len(buffer) > 1024 * 1024:  # 1MB'dan büyükse
+                    buffer = buffer[-1024*512:]  # Son 512KB'ı tut
         
+        except requests.exceptions.Timeout:
+            print("[CAMERA STREAM] ❌ Stream timeout")
+        except requests.exceptions.ConnectionError:
+            print("[CAMERA STREAM] ❌ Bağlantı hatası")
         except Exception as e:
             print(f"[CAMERA STREAM] ❌ Stream loop hatası: {e}")
+        finally:
             self.connected = False
             if self.error_callback:
-                self.error_callback(f"Stream hatası: {e}")
+                self.error_callback("Stream bağlantısı kesildi")
             if self.connection_callback:
                 self.connection_callback(False)
-    
-    def _parse_mjpeg_frames(self, buffer: bytes, boundary: bytes):
-        """MJPEG frame'lerini parse et"""
-        try:
-            # Frame başlangıcını bul
-            frame_start = buffer.find(b'\xff\xd8')  # JPEG start marker
-            frame_end = buffer.find(b'\xff\xd9')    # JPEG end marker
-            
-            if frame_start != -1 and frame_end != -1 and frame_end > frame_start:
-                # JPEG frame'i çıkar
-                jpeg_data = buffer[frame_start:frame_end + 2]
-                
-                # Frame'i decode et
-                frame = self._decode_jpeg_frame(jpeg_data)
-                if frame is not None:
-                    self.last_frame = frame
-                    self.frame_count += 1
-                    
-                    # FPS hesapla
-                    self._calculate_fps()
-                    
-                    # Callback'i tetikle
-                    if self.frame_callback:
-                        self.frame_callback(frame)
-        
-        except Exception as e:
-            print(f"[CAMERA STREAM] Frame parsing hatası: {e}")
     
     def _decode_jpeg_frame(self, jpeg_data: bytes) -> Optional[np.ndarray]:
         """JPEG verisini OpenCV frame'ine çevir"""
@@ -184,7 +204,8 @@ class CameraStreamClient:
         """FPS hesapla"""
         current_time = time.time()
         if current_time - self.last_fps_time >= 1.0:  # Her saniye
-            self.fps_counter = self.frame_count - (self.fps_counter if hasattr(self, 'last_frame_count') else 0)
+            self.fps_counter = self.frame_count - getattr(self, 'last_frame_count', 0)
+            self.last_frame_count = self.frame_count
             self.last_fps_time = current_time
             if hasattr(self, 'fps_callback') and self.fps_callback:
                 self.fps_callback(self.fps_counter)
@@ -254,16 +275,25 @@ class CameraStreamClient:
 # Test fonksiyonu
 if __name__ == "__main__":
     import matplotlib.pyplot as plt
+    from matplotlib.animation import FuncAnimation
+    
+    fig, ax = plt.subplots()
+    im = None
     
     def on_frame_received(frame):
+        global im
         print(f"📷 Frame alındı: {frame.shape}")
-        # İlk frame'i göster
-        if not hasattr(on_frame_received, 'shown'):
-            plt.imshow(frame)
-            plt.title("İlk Frame")
-            plt.axis('off')
-            plt.show()
-            on_frame_received.shown = True
+        
+        # İlk frame
+        if im is None:
+            im = ax.imshow(frame)
+            ax.axis('off')
+            plt.show(block=False)
+        else:
+            # Frame'i güncelle
+            im.set_data(frame)
+            plt.draw()
+            plt.pause(0.001)
     
     def on_connection_changed(connected):
         print(f"🔗 Stream bağlantısı: {'Aktif' if connected else 'Kesildi'}")
@@ -271,20 +301,39 @@ if __name__ == "__main__":
     def on_fps_update(fps):
         print(f"📊 FPS: {fps}")
     
-    print("🧪 Camera Stream Client Test")
+    def on_error(error):
+        print(f"❌ Hata: {error}")
     
-    client = CameraStreamClient()
+    print("🧪 Camera Stream Client Test")
+    print("Stream URL'yi değiştirmeyi unutmayın!")
+    
+    # Test için localhost kullan
+    client = CameraStreamClient(raspberry_ip="localhost", stream_port=9001)
+    
     client.register_frame_callback(on_frame_received)
     client.register_connection_callback(on_connection_changed)
     client.register_fps_callback(on_fps_update)
+    client.register_error_callback(on_error)
     
     if client.start_stream():
-        print("Stream başlatıldı, 10 saniye test...")
-        time.sleep(10)
+        print("✅ Stream başlatıldı")
+        print("Ctrl+C ile durdurun...")
         
-        # Frame kaydet
-        if client.save_current_frame("test_frame.jpg"):
-            print("Test frame kaydedildi")
+        try:
+            while True:
+                time.sleep(0.1)
+                
+                # Stream durumunu kontrol et
+                if not client.connected:
+                    print("Stream bağlantısı kesildi, yeniden bağlanıyor...")
+                    client.stop_stream()
+                    time.sleep(2)
+                    client.start_stream()
+                    
+        except KeyboardInterrupt:
+            print("\n🛑 Durduruldu")
+    else:
+        print("❌ Stream başlatılamadı")
     
     client.stop_stream()
     print("Test tamamlandı!")
